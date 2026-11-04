@@ -32,6 +32,8 @@ export default function ProductEditor({ product, reserved, busy, onSave, onClose
   const [error, setError] = useState("");
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [working, setWorking] = useState("");
+  const [enrichmentMode, setEnrichmentMode] = useState<"compose" | "web" | null>(null);
+  const [enrichmentNotice, setEnrichmentNotice] = useState("");
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
   const [imageType, setImageType] = useState<"packshot" | "lifestyle" | "detail">("packshot");
@@ -42,6 +44,7 @@ export default function ProductEditor({ product, reserved, busy, onSave, onClose
   const controller = useRef<AbortController | null>(null);
   const scrolling = useRef<HTMLDivElement>(null);
   const locked = busy || !!working;
+  const enriching = enrichmentMode !== null;
   const physical = product?.physicalPacks ?? initialStock;
   const available = Math.max(0, physical - reserved - form.safetyPacks);
   const context: AiContext = { sourceUrl: form.info.sourceUrl, lookupReference: form.info.lookupReference || form.sku,
@@ -82,14 +85,16 @@ export default function ProductEditor({ product, reserved, busy, onSave, onClose
       workflowStatus === "draft" ? "Brouillon enregistré. Les informations seront conservées pour la suite." : "Fiche activée dans le CRM. Aucune publication externe n’a été effectuée.");
   }
   async function askAi(action: "enrich" | "image", mode: "compose" | "web" = "compose") {
-    if (locked) return;
+    if (locked || controller.current) return;
+    setEnrichmentMode(action === "enrich" ? mode : null);
+    if (action === "enrich") setEnrichmentNotice("");
     setError(""); setWorking(action === "image" ? "Génération de l’image…" : mode === "web" ? "Recherche et préparation de la fiche…" : "Préparation des textes…");
     const current = new AbortController(); controller.current = current;
     try {
       const payload = action === "enrich" ? { action, mode, context } : { action, context, type: imageType, prompt: imagePrompt,
         useGlobalRules: globalRules, ...(usePhoto && localReference ? { referenceImage: localReference.url } : {}) };
       const response = await fetch("/api/demo/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: current.signal });
-      const body = await response.json(); if (!response.ok) throw new Error(body.error);
+      const body = await response.json(); if (current.signal.aborted) return; if (!response.ok) throw new Error(body.error);
       if (action === "enrich") {
         setProposal({ ...body, contextKey });
         const defaults = ["name", "shortDescription", "longDescription"].filter(key => body.suggestion[key] && !(key === "name" ? form.name : form.info[key as "shortDescription" | "longDescription"]));
@@ -97,9 +102,17 @@ export default function ProductEditor({ product, reserved, busy, onSave, onClose
         if (body.suggestion.brand && !form.info.brand) defaults.push("brand");
         if (body.suggestion.imageUrls?.length && !form.info.images.length) defaults.push("imageUrls");
         setChosen(defaults);
+        setEnrichmentNotice("Propositions prêtes. Vérifiez-les avant de les appliquer.");
       } else setImageProposal({ image: body.image, contextKey, cost: body.cost });
-    } catch (failure) { if (!current.signal.aborted) setError(failure instanceof Error ? failure.message : "La requête IA n’a pas abouti."); }
-    finally { if (controller.current === current) { controller.current = null; setWorking(""); } }
+    } catch (failure) {
+      if (!current.signal.aborted) setError(failure instanceof Error ? failure.message : "La requête IA n’a pas abouti.");
+      if (action === "enrich") setEnrichmentNotice(current.signal.aborted ? "Préparation annulée. Vos informations sont conservées." : "Préparation interrompue. Vos informations sont conservées ; vous pouvez réessayer.");
+    } finally {
+      if (controller.current === current) {
+        if (current.signal.aborted && action === "enrich") setEnrichmentNotice("Préparation annulée. Vos informations sont conservées.");
+        controller.current = null; setWorking(""); setEnrichmentMode(null);
+      }
+    }
   }
   function applyProposal() {
     if (locked || !proposal || stale || !chosen.length) return;
@@ -154,12 +167,13 @@ export default function ProductEditor({ product, reserved, busy, onSave, onClose
       <div className="product-scroll" ref={scrolling} role="tabpanel" aria-label="Informations du produit">
         <div className="product-local-status"><span className="badge shipped">Produit local</span><span className={`badge ${form.info.workflowStatus === "draft" ? "ready" : "shipped"}`}>{form.info.workflowStatus === "draft" ? "Brouillon" : "Actif dans le CRM"}</span><span>Aucune diffusion externe à cette étape</span></div>
         {error && <div className="product-error" role="alert"><CircleAlert size={18} /><span>{error}</span></div>}
-        <div className="product-enrich-box"><div className="product-enrich-title"><Sparkles size={18} /><strong>Identifier le produit et enrichir sa fiche</strong><span>OpenRouter</span></div><div className="product-source-row"><Field label="Lien produit · prioritaire si fourni" hint="Fiche fabricant, fournisseur ou marketplace. Le lien est consulté en priorité lors de la recherche web."><input type="url" value={form.info.sourceUrl} placeholder="https://…" maxLength={2048} onChange={e => info("sourceUrl", e.target.value)} /></Field><button className="button" type="button" disabled={locked || !(form.info.sourceUrl || form.info.lookupReference || form.sku)} onClick={() => void askAi("enrich", "web")}><Search size={16} />Enrichir depuis le web</button></div>
-          <div className="product-grid two"><Field label="SKU, EAN ou référence pour la recherche"><input value={form.info.lookupReference} onChange={e => info("lookupReference", e.target.value)} maxLength={160} placeholder="Référence fabricant, ASIN, EAN…" /></Field><Field label="Contexte additionnel"><textarea rows={2} value={form.info.researchContext} onChange={e => info("researchContext", e.target.value)} maxLength={3000} placeholder="Famille, matière, usage, fournisseur, informations sûres…" /></Field></div>
-          <div className="product-ai-toolbar"><button className="button secondary" type="button" disabled={locked || !(form.name || form.info.lookupReference || form.sku)} onClick={() => void askAi("enrich")}><Sparkles size={15} />Proposer les textes</button><span>{status?.keyPresent ? "Clé enregistrée · chaque requête utilise votre compte OpenRouter" : "Clé OpenRouter à configurer"}</span><Link href="/parametres" target="_blank" rel="noreferrer">Configurer l’IA <ExternalLink size={12} /></Link><button className="text-button" type="button" onClick={() => void refreshStatus()} aria-label="Actualiser la configuration IA">Actualiser</button></div>
+        <div className={`product-enrich-box${enriching ? " is-enriching" : ""}`} aria-busy={enriching}><div className="product-enrich-title"><Sparkles size={18} /><strong>Identifier le produit et enrichir sa fiche</strong><span>OpenRouter</span></div><div className="product-source-row"><Field label="Lien produit · prioritaire si fourni" hint="Fiche fabricant, fournisseur ou marketplace. Le lien est consulté en priorité lors de la recherche web."><input type="url" readOnly={enriching} value={form.info.sourceUrl} placeholder="https://…" maxLength={2048} onChange={e => info("sourceUrl", e.target.value)} /></Field><button className="button" type="button" disabled={locked || !(form.info.sourceUrl || form.info.lookupReference || form.sku)} onClick={() => void askAi("enrich", "web")}>{enrichmentMode === "web" ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Search size={16} />}<span className="product-ai-button-label"><span style={{ visibility: enrichmentMode === "web" ? "hidden" : "visible" }} aria-hidden={enrichmentMode === "web"}>Enrichir depuis le web</span>{enrichmentMode === "web" && <span>Recherche en cours…</span>}</span></button></div>
+          <div className="product-grid two"><Field label="SKU, EAN ou référence pour la recherche"><input readOnly={enriching} value={form.info.lookupReference} onChange={e => info("lookupReference", e.target.value)} maxLength={160} placeholder="Référence fabricant, ASIN, EAN…" /></Field><Field label="Contexte additionnel"><textarea rows={2} readOnly={enriching} value={form.info.researchContext} onChange={e => info("researchContext", e.target.value)} maxLength={3000} placeholder="Famille, matière, usage, fournisseur, informations sûres…" /></Field></div>
+          <div className="product-ai-toolbar"><button className="button secondary" type="button" disabled={locked || !(form.name || form.info.lookupReference || form.sku)} onClick={() => void askAi("enrich")}>{enrichmentMode === "compose" ? <LoaderCircle className="spin" size={15} aria-hidden="true" /> : <Sparkles size={15} />}<span className="product-ai-button-label"><span style={{ visibility: enrichmentMode === "compose" ? "hidden" : "visible" }} aria-hidden={enrichmentMode === "compose"}>Proposer les textes</span>{enrichmentMode === "compose" && <span>Textes en cours…</span>}</span></button><span>{status?.keyPresent ? "Clé enregistrée · chaque requête utilise votre compte OpenRouter" : "Clé OpenRouter à configurer"}</span><Link href="/parametres" target="_blank" rel="noreferrer">Configurer l’IA <ExternalLink size={12} /></Link><button className="text-button" type="button" onClick={() => void refreshStatus()} aria-label="Actualiser la configuration IA">Actualiser</button></div>
           <p className="product-ai-notice">L’IA transmet uniquement ces informations produit à OpenRouter. Elle prépare des propositions ; aucun champ n’est remplacé sans votre choix. Prix, EAN, caractéristiques et images restent à vérifier.</p>
+          {enriching && <div className="product-enrich-preview" aria-hidden="true"><div className="product-enrich-preview-copy"><strong>Propositions en préparation</strong><span>{enrichmentMode === "web" ? "Recherche des sources et des informations produit." : "Rédaction à partir des informations de votre fiche."}</span></div><div className="product-enrich-skeleton"><span /><span /><span /></div></div>}
         </div>
-        {working && <div className="product-working" role="status"><LoaderCircle className="spin" size={18} />{working}<button className="text-button" type="button" onClick={() => controller.current?.abort()}>Annuler la requête</button></div>}
+        <div role="status" aria-live="polite" aria-atomic="true">{working ? <div className="product-working"><LoaderCircle className="spin" size={18} aria-hidden="true" /><span>{working}</span><button className="text-button" type="button" onClick={() => controller.current?.abort()}>Annuler la requête</button></div> : enrichmentNotice && <p className="product-enrich-feedback">{enrichmentNotice}</p>}</div>
         {proposal && <section className="product-proposal"><div className="product-proposal-head"><h3><Sparkles size={17} />Propositions IA à vérifier</h3><span>{proposal.model}{proposal.cost !== null ? ` · ${proposal.cost.toFixed(4)} USD` : ""}</span></div>{stale && <p className="product-error">Les informations de départ ont changé. Relancez une proposition avant de l’appliquer.</p>}
           <div className="product-proposal-list">{proposalFields.filter(key => { const v = proposal.suggestion[key as keyof AiSuggestion]; return v !== null && v !== "" && (!Array.isArray(v) || v.length > 0); }).map(key => {
             const evidence = proposal.suggestion.evidence.find(e => e.field === key);

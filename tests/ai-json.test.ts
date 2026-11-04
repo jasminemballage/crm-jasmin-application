@@ -29,6 +29,46 @@ test("une réponse annoncée tronquée ou refusée ne devient jamais une proposi
   assert.throws(() => parseAiObject(JSON.stringify(valid), "stop", "refus fournisseur"), /Aucun champ/);
 });
 
+test("la limite de sortie est expliquée sans attribuer la coupure au contexte fourni", () => {
+  for (const finishReason of ["length", "max_tokens"]) {
+    assert.throws(() => parseAiObject(JSON.stringify(valid), finishReason), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /limite de génération/);
+      assert.doesNotMatch(error.message, /Réduisez le contexte/);
+      assert.match(error.message, /Aucun champ/);
+      return true;
+    });
+  }
+});
+
+for (const scenario of [
+  { name: "l’extraction", retrievalTokens: 3000, formattingTokens: 3000 },
+  { name: "le formatage JSON", retrievalTokens: 1000, formattingTokens: 5000 }
+]) test(`le budget couvre le raisonnement pendant ${scenario.name} sans imposer un paramètre de modèle`, async () => {
+  const referenceContext = { ...context, sourceUrl: "", lookupReference: "SAC-123" };
+  let calls = 0;
+  const mock = (async (_url, options) => {
+    calls++;
+    const payload = JSON.parse(String(options?.body));
+    const formatting = Boolean(payload.response_format);
+    // The provider counts reasoning inside max_tokens, even when only the final text is returned.
+    const requiredTokens = formatting ? scenario.formattingTokens : scenario.retrievalTokens;
+    assert.ok(payload.max_tokens <= (formatting ? 10000 : 6000), "Les dépenses restent bornées à chaque étape.");
+    assert.equal(Object.hasOwn(payload, "reasoning"), false);
+    const truncated = payload.max_tokens < requiredTokens;
+    return Response.json({
+      choices: [{ finish_reason: truncated ? "length" : "stop", message: {
+        content: truncated ? '{"name":' : formatting ? JSON.stringify(valid) : "Sac fictif. Source : https://example.com/sac"
+      } }],
+      usage: { completion_tokens: Math.min(payload.max_tokens, requiredTokens), completion_tokens_details: { reasoning_tokens: formatting ? 2143 : 422 }, cost: 0.001 }
+    });
+  }) as typeof fetch;
+  const result = await enrichProduct(referenceContext, "web", config, mock);
+  assert.deepEqual(result.suggestion, valid);
+  assert.equal(result.cost, 0.002);
+  assert.equal(calls, 2);
+});
+
 test("un résultat web entouré de Markdown devient une proposition validée avec le contrat explicite demandé", async () => {
   let calls = 0;
   const mock = (async (_url, options) => {

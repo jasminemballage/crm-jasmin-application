@@ -2,6 +2,8 @@
 
 Code source : dépôt public [jasminemballage/crm-jasmin-application](https://github.com/jasminemballage/crm-jasmin-application).
 
+Correctif du 4 novembre : budget de génération adapté aux modèles avec raisonnement, et état de préparation animé dans la fiche produit. Voir le [diagnostic et les vérifications](docs/CORRECTIF_2026-11-04_ENRICHISSEMENT.md).
+
 Cette étape fournit une application utilisable sur cet ordinateur pour valider le parcours métier avec Jasmin. **Toutes les données initiales sont fictives. Aucun canal ni transporteur n’est connecté.**
 
 Le dépôt de code exclut les clés et configurations locales, les données enregistrées, les médias locaux, les sauvegardes, ainsi que les PDF/captures de référence et preuves d’essais. Ces éléments restent dans la copie locale du projet ; certains liens documentaires vers ces pièces nécessitent cette copie.

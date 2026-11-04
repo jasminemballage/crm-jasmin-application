@@ -4,7 +4,7 @@ export function readAiText(content: unknown, finishReason?: string | null, refus
   if (finishReason === "content_filter" || (typeof refusal === "string" && refusal.trim()))
     throw new DomainError("Le modèle n’a pas fourni de proposition pour cette demande. Aucun champ n’a été modifié.", 502);
   if (["length", "max_tokens"].includes(finishReason ?? ""))
-    throw new DomainError("La réponse IA a été interrompue avant sa fin. Aucun champ n’a été modifié. Réduisez le contexte avant un nouvel essai.", 502);
+    throw new DomainError("La réponse IA a été interrompue car le modèle a atteint sa limite de génération. Aucun champ n’a été modifié. Essayez un autre modèle dans Paramètres → Enrichissement IA.", 502);
   if (typeof content !== "string" || !content.trim())
     throw new DomainError("Aucune proposition textuelle n’a été renvoyée. Aucun champ n’a été modifié.", 502);
   return content.trim();
