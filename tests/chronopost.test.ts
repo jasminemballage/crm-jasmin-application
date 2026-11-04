@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm, stat, readdir, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { getChronopostSettings, publicChronopostStatus, saveChronopostSettings } from "../src/lib/chronopost-settings";
@@ -66,6 +66,16 @@ test("Chronopost SOAP uses documented shippingV7 sequence, configured channel an
   assert.match(xml, /<chr:shippingV7/); assert.match(xml, /<weight>2.5<\/weight>/); assert.match(xml, /<weightUnit>KGM<\/weightUnit>/);
   assert.match(xml, /<length>30<\/length>/); assert.match(xml, /<subAccount>2<\/subAccount>/); assert.match(xml, /<password>secret&lt;&amp;value<\/password>/);
   assert.match(xml, /<mode>PDF<\/mode>/); assert.match(xml, /<withReservation>0<\/withReservation>/);
+});
+
+test("Chronopost serializes a numeric Paris shipHour, including midnight and summer time", () => {
+  const { state, shipmentId } = prepared(); const shipment = state.shipments.find(s => s.id === shipmentId)!;
+  const order = state.orders.find(o => o.id === shipment.orderId)!;
+  for (const [date, hour] of [["2026-11-04T19:19:30Z", 20], ["2026-11-04T23:00:00Z", 0], ["2026-07-04T19:00:00Z", 21]] as const) {
+    const xml = buildChronopostSoap(shipment, order, recipient, config, new Date(date));
+    assert.match(xml, new RegExp(`<shipHour>${hour}</shipHour>`));
+    assert.doesNotMatch(xml, /NaN|Infinity/);
+  }
 });
 
 test("Chronopost parses namespaced response and rejects unsafe XML or non PDF payload", () => {
@@ -204,4 +214,54 @@ test("Chronopost refuses cached label reuse without its local shipment and order
   await assert.rejects(createChronopostLabel({ shipmentId, recipient, confirmed: true }, withoutOrder, config, { root, requestFetch }), /introuvable/);
   const withoutShipment = { ...state, shipments: [] };
   await assert.rejects(createChronopostLabel({ shipmentId, recipient, confirmed: true }, withoutShipment, config, { root, requestFetch }), /introuvable/);
+}));
+
+
+for (const [body, status, code] of [
+  ["<html>private carrier fault</html>", 502, "HTTP_ERROR"],
+  ["not XML private carrier fault", 200, "INVALID_XML"],
+  [success.replace(/<pdfEtiquette>.*?<\/pdfEtiquette>/, ""), 200, "INCOMPLETE_RESULT"]
+] as const) test(`Chronopost retains private response and safe diagnostic ${code}`, async () => temporary(async root => {
+  const { state, shipmentId } = prepared();
+  const requestFetch = (async () => new Response(body, { status })) as typeof fetch;
+  await assert.rejects(createChronopostLabel({ shipmentId, recipient, confirmed: true }, state, config, { root, requestFetch }), /incertaine/);
+  const label = await readChronopostLabel(shipmentId, root);
+  assert.deepEqual(label.diagnostic, { stage: code === "HTTP_ERROR" ? "response" : "parse", code, httpStatus: status });
+  assert.equal(await readFile(path.join(root, `${shipmentId}.response.xml`), "utf8"), body);
+  assert.equal((await stat(path.join(root, `${shipmentId}.response.xml`))).mode & 0o777, 0o600);
+  const record = await readFile(path.join(root, `${shipmentId}.json`), "utf8");
+  for (const privateValue of [config.password, "private carrier fault", "pdfEtiquette", recipient.email]) {
+    assert.equal(JSON.stringify(label).includes(privateValue), false);
+    assert.equal(record.includes(privateValue), false);
+  }
+  assert.equal((await readdir(root)).some(file => file.includes("request")), false);
+}));
+
+test("Chronopost network diagnostic never serializes arbitrary error text or secrets", async () => temporary(async root => {
+  const { state, shipmentId } = prepared();
+  const requestFetch = (async () => { throw new TypeError(`fetch failed ${config.password}`, { cause: Object.assign(new Error(recipient.email), { code: "ENOTFOUND" }) }); }) as typeof fetch;
+  await assert.rejects(createChronopostLabel({ shipmentId, recipient, confirmed: true }, state, config, { root, requestFetch }), /incertaine/);
+  const label = await readChronopostLabel(shipmentId, root);
+  assert.deepEqual(label.diagnostic, { stage: "request", code: "NETWORK_DNS_FAILURE" });
+  const record = await readFile(path.join(root, `${shipmentId}.json`), "utf8");
+  assert.equal(record.includes(config.password), false); assert.equal(record.includes(recipient.email), false);
+  assert.equal((await readdir(root)).some(file => file.endsWith(".xml")), false);
+}));
+
+test("Chronopost response storage is bounded before parsing", async () => temporary(async root => {
+  const { state, shipmentId } = prepared();
+  const requestFetch = (async () => new Response("x".repeat(8 * 1024 * 1024 + 1))) as typeof fetch;
+  await assert.rejects(createChronopostLabel({ shipmentId, recipient, confirmed: true }, state, config, { root, requestFetch }), /incertaine/);
+  assert.equal((await stat(path.join(root, `${shipmentId}.response.xml`))).size, 8 * 1024 * 1024);
+  assert.equal((await readChronopostLabel(shipmentId, root)).diagnostic?.code, "RESPONSE_TOO_LARGE");
+}));
+
+test("Chronopost distinguishes local PDF persistence failure without allowing a retry", async () => temporary(async root => {
+  const { state, shipmentId } = prepared(); let calls = 0;
+  await mkdir(path.join(root, `${shipmentId}.pdf.tmp`));
+  const requestFetch = (async () => { calls++; return new Response(success); }) as typeof fetch;
+  await assert.rejects(createChronopostLabel({ shipmentId, recipient, confirmed: true }, state, config, { root, requestFetch }), /incertaine/);
+  assert.deepEqual((await readChronopostLabel(shipmentId, root)).diagnostic, { stage: "persist", code: "PDF_PERSIST_FAILED", httpStatus: 200 });
+  await assert.rejects(createChronopostLabel({ shipmentId, recipient, confirmed: true }, state, config, { root, requestFetch }));
+  assert.equal(calls, 1);
 }));

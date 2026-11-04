@@ -44,6 +44,7 @@ async function mockApi(page: Page, mode: "ready" | "missing" | "uncertain" | "ot
     return respond({ error: "API interdite par le test navigateur" }, 403);
   });
   return { posts: () => posts, saved: () => saved, recover: () => { failOnce = false; },
+    markRejected: () => { label = { shipmentId: "parcel-ui", status: "rejected", message: "Rejet confirmé après vérification" }; },
     configure: () => { settings.enabled = true; settings.ready = true; settings.passwordPresent = true; } };
 }
 async function openLabel(page: Page) {
@@ -100,6 +101,11 @@ test("résultat incertain interdit une deuxième création", async ({ page }) =>
   await expect(page.getByRole("button", { name: "Créer l’étiquette Chronopost", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Vérifier l’état", exact: true }).click();
   await expect(page.getByText("Création à vérifier", { exact: true })).toBeVisible(); expect(api.posts()).toBe(1);
+  api.markRejected();
+  await page.getByRole("button", { name: "Vérifier l’état", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: /Je confirme/ })).toBeEnabled();
+  await expect(page.getByText("Rejet confirmé après vérification")).toBeVisible();
+  expect(api.posts()).toBe(1);
 });
 
 for (const mode of ["missing", "other-channel"] as const) test(`configuration ${mode} bloque le canal courant`, async ({ page }) => {

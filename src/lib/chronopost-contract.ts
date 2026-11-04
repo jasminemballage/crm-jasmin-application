@@ -28,8 +28,14 @@ export type ChronopostChannel = z.infer<typeof chronopostChannelSchema>;
 export type ChronopostSettingsInput = z.infer<typeof chronopostSettingsInput>;
 export type ChronopostSettings = Omit<ChronopostSettingsInput, "clearPassword" | "password" | "channels"> & { password: string; channels: Record<string, ChronopostChannel> };
 export type ChronopostStatus = Omit<ChronopostSettings, "password"> & { passwordPresent: boolean; ready: boolean; verified: false };
+export const chronopostDiagnosticSchema = z.object({
+  stage: z.enum(["request", "response", "parse", "persist"]),
+  code: z.enum(["NETWORK_FAILURE", "NETWORK_DNS_FAILURE", "NETWORK_CONNECTION_REFUSED", "NETWORK_CONNECTION_RESET", "NETWORK_TLS_FAILURE", "NETWORK_TIMEOUT", "REQUEST_ABORTED", "HTTP_ERROR", "EMPTY_RESPONSE", "RESPONSE_TOO_LARGE", "RESPONSE_READ_FAILED", "INVALID_XML", "SOAP_FAULT", "MISSING_RESULT", "INCONSISTENT_RESULT", "CARRIER_REJECTED", "INCOMPLETE_RESULT", "INVALID_PDF_ENCODING", "INVALID_PDF", "RESPONSE_PERSIST_FAILED", "PDF_PERSIST_FAILED", "RECORD_PERSIST_FAILED", "UNKNOWN_FAILURE"]),
+  httpStatus: z.number().int().min(100).max(599).optional()
+}).strict();
+export type ChronopostDiagnostic = z.infer<typeof chronopostDiagnosticSchema>;
 export type ChronopostLabelStatus = { shipmentId: string; status: "none" | "pending" | "uncertain" | "rejected" | "created";
-  trackingNumber?: string; pdfUrl?: string; createdAt?: string; message?: string; reused?: boolean };
+  trackingNumber?: string; pdfUrl?: string; createdAt?: string; message?: string; reused?: boolean; diagnostic?: ChronopostDiagnostic };
 export const emptyChronopostAddress = (): ChronopostAddress => ({ name: "", address1: "", address2: "", zipCode: "", city: "", country: "FR", contactName: "", email: "", phone: "" });
 export const emptyChronopostChannels = () => Object.fromEntries(channels.map(channel => [channel, { accountNumber: "", subAccount: "", productCode: "", service: "" }])) as z.infer<typeof chronopostChannelsSchema>;
 

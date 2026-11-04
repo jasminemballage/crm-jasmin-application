@@ -26,10 +26,20 @@ Le périmètre initial couvre un PDF par colis, livraison à domicile en France 
 
 ## Vérification
 
-- 104 tests automatisés passent : règles métier existantes, métadonnées, montants, configuration, concurrence, XML/PDF, erreurs transporteur, tentatives interrompues et absence de doubles créations.
+- 111 tests automatisés passent : règles métier existantes, métadonnées, montants, configuration, concurrence, XML/PDF, erreurs transporteur, tentatives interrompues et absence de doubles créations.
 - 10 scénarios Playwright passent dans un Chrome isolé : filtres, détail, coordonnées absentes, création confirmée, réutilisation PDF, résultat incertain, canal incomplet, chargement récupérable, paramètres, mobile et mise à jour du contrat depuis un autre onglet sans perte du destinataire. Toutes les routes API sont interceptées avec des données fictives ; aucune création réelle.
 - Captures inspectées sur ordinateur et mobile. Le navigateur intégré ne pouvait pas initialiser son module de service ; les essais utilisent une nouvelle session Chrome sans profil utilisateur.
 - TypeScript et compilation de production passent.
 - 47 contrôles HTTP passent sur le serveur séparé `127.0.0.1:3101`, avec données de test restaurées. Les données utilisateur du port 3000 ne sont pas utilisées.
 
-Aucun appel authentifié Chronopost ni PDF réel n’a été émis pendant ces contrôles. Les informations fournies par Tim sont enregistrées uniquement dans sa configuration locale. L’authentification du contrat et le premier envoi restent à vérifier ; les marketplaces ne fournissent toujours pas de commandes réelles à cette version.
+Ces tests automatisés restent simulés. Les informations fournies par Tim sont enregistrées uniquement dans sa configuration locale. Les marketplaces ne fournissent toujours pas de commandes réelles à cette version.
+
+## Correctif après le premier essai utilisateur
+
+La première demande utilisateur a échoué : la construction XML convertissait `Intl.DateTimeFormat("fr-FR").format()` en nombre alors que l’heure française contient le suffixe `h`. Le champ SOAP entier `shipHour` devenait `NaN`. Les tests simulés ne contrôlaient pas cette valeur.
+
+Le défaut a été reproduit avec le contrat de test public inclus dans le module officiel Chronopost : HTTP 500 et faute SOAP de désérialisation de `shipHour`. Après extraction de la partie numérique avec `formatToParts`, la même opération sur ce contrat de test retourne HTTP 200, `errorCode=0` et un PDF lisible de 52 255 octets. Le test de régression vérifie hiver, été et minuit ; toute valeur numérique non finie est désormais refusée avant l’appel.
+
+Une consultation de tarif `quickCost` avec les accès locaux a confirmé l’authentification (`errorCode=0`). Une recherche `trackWithSenderRef` n’a retourné aucun colis ; une recherche vide ne constitue pas, seule, une preuve d’absence d’étiquette. L’ancienne tentative, dont le XML contenait nécessairement l’heure invalide, a été reclassée en rejet après reproduction de ce défaut de désérialisation. Sa trace originale et la justification sont conservées localement. La réponse originale n’avait pas été conservée et n’a pas été reconstruite artificiellement. Aucune demande d’expédition valide n’a été relancée sur le contrat utilisateur.
+
+Les réponses transporteur sont maintenant conservées avant analyse dans des fichiers locaux `.response.xml` privés, bornés à 8 Mio. L’état expose uniquement une étape, un code contrôlé et le statut HTTP éventuel. Les requêtes SOAP authentifiées ne sont jamais journalisées. Ces traces doivent rester exclues du dépôt et des exports publics, au même titre que les PDF. Les réponses inconnues ou les coupures continuent de bloquer les nouvelles créations.
