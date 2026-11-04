@@ -6,6 +6,36 @@ export const statuses = ["review", "ready", "preparing", "partial", "shipped", "
 const count = z.number().int().min(0).max(1_000_000);
 const positive = count.min(1);
 const text = z.string().trim().min(1).max(160);
+const optionalText = z.string().trim().max(500).optional();
+const orderMoney = z.number().int().min(0).max(1_000_000_000_000);
+const orderLineDetailsSchema = z.object({
+  sku: optionalText, asin: optionalText, title: optionalText,
+  shippingCents: orderMoney.optional(), taxCents: orderMoney.optional(),
+  discountCents: orderMoney.optional(), totalTtcCents: orderMoney.optional()
+});
+const orderDetailsSchema = z.object({
+  purchasedAt: z.iso.datetime().optional(), marketplace: optionalText,
+  salesChannel: optionalText, orderChannel: optionalText,
+  paymentMethod: optionalText, paymentDetails: optionalText, serviceLevel: optionalText,
+  syncedAt: z.iso.datetime().optional(), fulfillment: z.enum(["FBM", "FBA"]).optional(),
+  prime: z.boolean().optional(), b2b: z.boolean().optional(),
+  premium: z.boolean().optional(), replacement: z.boolean().optional(),
+  shipFrom: z.iso.datetime().optional(), shipBy: z.iso.datetime().optional(),
+  deliverFrom: z.iso.datetime().optional(), deliverBy: z.iso.datetime().optional(),
+  totalTtcCents: orderMoney.optional(),
+  recipient: z.object({
+    company: optionalText, lastName: optionalText, firstName: optionalText,
+    email: z.string().trim().max(254).email().optional(), phone: optionalText,
+    address1: optionalText, address2: optionalText, postalCode: optionalText,
+    city: optionalText, region: optionalText,
+    country: z.string().trim().regex(/^[A-Z]{2}$/).optional()
+  }).optional()
+}).superRefine((details, ctx) => {
+  for (const [from, to] of [["shipFrom", "shipBy"], ["deliverFrom", "deliverBy"]] as const) {
+    if (details[from] && details[to] && Date.parse(details[from]) > Date.parse(details[to]))
+      ctx.addIssue({ code: "custom", path: [to], message: "La fin de la fenêtre doit suivre son début." });
+  }
+});
 
 export const productInput = z.object({
   sku: z.string().trim().min(2).max(40).regex(/^[A-Za-z0-9_.-]+$/, "Référence : lettres, chiffres, tirets et points uniquement."),
@@ -19,12 +49,12 @@ export const productSchema = productInput.extend({ id: text, physicalPacks: coun
 });
 const lineSchema = z.object({
   id: text, productId: text, quantity: positive, packsPerSale: positive,
-  shippedPacks: count, unitPriceCents: count
+  shippedPacks: count, unitPriceCents: count, details: orderLineDetailsSchema.optional()
 });
 export const orderSchema = z.object({
   id: text, externalId: text, channel: z.enum(channels), createdAt: z.iso.datetime(),
   customer: text, city: text, country: z.enum(["FR", "BE", "DE", "ES", "IT", "NL", "LU"]),
-  status: z.enum(statuses), lines: z.array(lineSchema).min(1).max(100)
+  status: z.enum(statuses), lines: z.array(lineSchema).min(1).max(100), details: orderDetailsSchema.optional()
 });
 const allocationSchema = z.object({ lineId: text, packs: positive });
 export const shipmentSchema = z.object({

@@ -2,6 +2,10 @@
 
 Mis à jour le 19 octobre 2026. Lot 0 du [plan de développement](PLAN_CRM_JASMIN.md).
 
+## Ajout du 4 novembre 2026
+
+Le CRM possède maintenant le connecteur SOAP Chronopost `shippingV7`, une configuration par canal et le téléchargement des étiquettes PDF. Les contrôles utilisent un transporteur simulé ; aucun envoi réel ni authentification du contrat n’a encore été validé. La première version couvre les colis domicile en France métropolitaine. Les connexions marketplaces et les validations de sécurité/hébergement ci-dessous restent à réaliser. Voir [le bilan](docs/COMMANDES_CHRONOPOST_2026-11-04.md).
+
 ## État de l’audit
 
 L’audit documentaire a commencé. Aucun appel authentifié aux comptes de Jasmin n’a été réalisé et aucun connecteur n’est validé en production.

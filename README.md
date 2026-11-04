@@ -4,7 +4,7 @@ Code source : dépôt public [jasminemballage/crm-jasmin-application](https://gi
 
 Correctif du 4 novembre : budget de génération adapté aux modèles avec raisonnement, et état de préparation animé dans la fiche produit. Voir le [diagnostic et les vérifications](docs/CORRECTIF_2026-11-04_ENRICHISSEMENT.md).
 
-Cette étape fournit une application utilisable sur cet ordinateur pour valider le parcours métier avec Jasmin. **Toutes les données initiales sont fictives. Aucun canal ni transporteur n’est connecté.**
+Cette étape fournit une application utilisable sur cet ordinateur pour valider le parcours métier avec Jasmin. **Toutes les commandes initiales sont fictives. Les marketplaces ne sont pas connectées. Le connecteur Chronopost est disponible en configuration locale, sans validation d’un envoi réel.**
 
 Le dépôt de code exclut les clés et configurations locales, les données enregistrées, les médias locaux, les sauvegardes, ainsi que les PDF/captures de référence et preuves d’essais. Ces éléments restent dans la copie locale du projet ; certains liens documentaires vers ces pièces nécessitent cette copie.
 
@@ -23,6 +23,16 @@ L’enrichissement propose les textes et, en mode web, des faits accompagnés de
 Depuis la version 0.3.3, les fiches de jasminemballage.fr bénéficient aussi d’une lecture directe des métadonnées du produit : catégorie adaptée, marque explicitement déclarée et photos originales. Le vendeur n’est pas utilisé comme marque. Une marque absente reste vide avec l’indication « À confirmer ». Les photos proposées affichent un aperçu avant ajout à la galerie. Sur le sac poulet de Jasmin, le test réel a confirmé **Sacs**, aucune marque et une photo originale. Voir le [bilan catégorie, marque et images](docs/ENRICHISSEMENT_2026-11-02_CATEGORIE_MARQUE_IMAGES.md).
 
 Voir [la configuration et les limites de l’IA](docs/IA_ET_FICHE_PRODUIT.md). Les textes et images ont été vérifiés réellement le 2 novembre. Le correctif 0.3.2 a ensuite validé l’enrichissement depuis le lien public du sac à poulet fourni par Jasmin, en séparant consultation web et construction contrôlée de la fiche. Les propositions restent à vérifier avant application. Voir le [bilan du correctif](docs/CORRECTIF_2026-11-02_JSON_ENRICHISSEMENT_WEB.md). La recherche sans lien exact et la génération avec photo de référence restent à essayer.
+
+## Commandes et étiquettes Chronopost
+
+La page Commandes reprend les indicateurs, filtres par canal/statut, recherche, dates, montants et pagination. Une commande ouvre un détail avec client, destinataire, adresse, coordonnées, créneaux d’expédition/livraison, articles et montants. Les totaux HT et TTC restent distincts. Incidents, livraisons et remboursements restent indisponibles tant qu’aucun connecteur ne transmet ces informations.
+
+Dans **Paramètres → Expéditions · Chronopost**, saisir le mot de passe Web Services, les coordonnées de l’expéditeur, puis le compte, sous-compte, produit et service de chaque canal utilisé. Un seul canal complet suffit pour commencer. Le mot de passe est commun aux canaux ; des contrats nécessitant des mots de passe différents demandent une extension. Les accès sont enregistrés côté serveur dans `.env.local`, ignoré par Git. Aucun appel Chronopost n’a lieu à l’enregistrement.
+
+Depuis une commande, préparer un colis, ouvrir **Étiquette Chronopost**, vérifier le destinataire, puis confirmer la création. Le premier parcours couvre la France métropolitaine à domicile, un PDF par colis. La création n’effectue aucune sortie de stock et ne confirme pas l’expédition auprès de la marketplace. En cas de réponse interrompue, la régénération est bloquée jusqu’à vérification ; rouvrir une étiquette réussie réutilise son PDF.
+
+Les PDF et historiques restent dans `.local/chronopost/`, hors dépôt et hors export JSON des commandes. Sauvegarder ce dossier avec les données locales pour conserver les documents et la protection contre les doublons. Voir [fonctionnement, contrôles et limites](docs/COMMANDES_CHRONOPOST_2026-11-04.md).
 
 ## Ouvrir le CRM
 
@@ -43,7 +53,7 @@ Si le port 3000 est déjà occupé, fermer l’autre lancement du CRM. Les dépe
 6. Vérifier que le physique et le réservé ont baissé du même nombre de paquets. Une répétition de la remise n’effectue aucune nouvelle sortie.
 7. Annuler le solde d’une autre commande : ses réservations restantes sont libérées.
 
-La fiche A4 est un document de préparation interne, **non valable pour le transport**. Aucune étiquette Chronopost ni facture n’est générée.
+La fiche A4 est un document de préparation interne, **non valable pour le transport**. La génération d’une étiquette de transport Chronopost est une action distincte dans le détail de commande ; aucune facture n’est générée.
 
 Les filtres, recherches, imports avec aperçu, exports CSV et la copie complète sont disponibles. Les modifications sont conservées dans `.local/demo-state.json`, ignoré par Git. Un fichier illisible est conservé et bloque les modifications, sans retour silencieux au jeu initial. La réinitialisation volontaire se trouve dans **Paramètres** et demande une confirmation. L’export complet permet de conserver ses essais ; sa restauration n’a pas encore d’écran.
 
@@ -68,11 +78,13 @@ Le [parcours d’essai guidé](docs/ESSAI_GUIDE.md) utilise uniquement les modè
 - Colis partiels, annulation du solde, déduction lors de la remise simulée, prévention des doubles sorties.
 - Commandes historiques closes en consultation, sans impact stock.
 - Journal des actions et mouvements ; export CSV protégé contre l’interprétation de formules.
-- État réel des six connexions prévues : **non connectées**.
+- Commandes multicanales filtrables et détail client, livraison, articles et créneaux.
+- Configuration Chronopost par canal et génération PDF avec protection contre les doubles créations ; validation réelle du contrat encore nécessaire.
+- Marketplaces : **non connectées** ; les données manquantes restent signalées.
 
 Le stockage de démonstration utilise un fichier et un verrou dans **un seul processus local**. Il n’est pas une base partagée ni un système de sauvegarde. Les routes refusent les hôtes distants et les écritures depuis une origine différente. Le mode production est bloqué par défaut ; `CRM_LOCAL_DEMO=1` ne sert qu’aux essais sur localhost et ne rend pas ce logiciel exploitable sur un serveur.
 
-**Utiliser des clients, adresses et commandes fictifs ; ne pas saisir d’identifiants vendeurs ou transport dans cette version.** La clé OpenRouter peut être renseignée uniquement dans le formulaire serveur prévu dans Paramètres. Les fichiers locaux ne sont pas chiffrés par l’application. Les comptes nominatifs, droits et double authentification ne sont pas encore implémentés.
+**Les commandes initiales restent des exemples.** Les accès OpenRouter et Chronopost se renseignent uniquement dans leurs formulaires serveur de Paramètres. Une création Chronopost explicitement confirmée peut émettre une étiquette réelle facturable ; ne pas lancer cet envoi sur un destinataire fictif. Les identifiants vendeurs ne sont pas encore pris en charge. Les fichiers locaux ne sont pas chiffrés par l’application. Les comptes nominatifs, droits et double authentification ne sont pas encore implémentés.
 
 ## Développement et contrôles
 
@@ -81,12 +93,15 @@ Application Next.js 16, React, TypeScript. Les données et les règles sont sép
 ```text
 pnpm dev           # serveur local de développement
 pnpm test          # réservations, colis, concurrence locale et protection des données
+pnpm test:ui       # navigateur isolé, toutes les API remplacées par des simulations
 pnpm typecheck     # contrôle TypeScript
 pnpm build         # compilation de l’application
 pnpm schema:check  # validation du modèle PostgreSQL prévu
 ```
 
 Les contrôles HTTP de `tests/http-smoke.mjs` nécessitent un serveur de test isolé, par exemple sur `127.0.0.1:3101`, lancé avec `CRM_LOCAL_DEMO=1`, `CRM_AI_DISABLED=1` et `CRM_DEMO_DATA_FILE=.local/test-runs/http-state.json`. Fournir ces mêmes variables, ainsi que `CRM_TEST_BASE_URL=http://127.0.0.1:3101`, au script de contrôle. Le port 3000 et le fichier des essais de Jasmin sont refusés par ce script. La variable de fichier reste limitée au dossier `.local` ; ne jamais partager le même fichier entre plusieurs processus. Les médias et la configuration des tests sont séparés des médias et secrets de l’application utilisateur.
+
+Pour les tests navigateur, démarrer le serveur local puis installer le navigateur avec `pnpm exec playwright install chromium`, ou fournir `CRM_UI_CHROME_PATH` vers un Chrome installé. `CRM_UI_BASE_URL` permet de changer le port. Toutes les routes `/api/demo/**` sont interceptées ; ces tests ne modifient pas les données du poste et ne contactent pas le transporteur.
 
 `prisma/schema.prisma` est le modèle initial de la prochaine étape. Il n’est pas encore relié à l’application. Aucun serveur PostgreSQL, migration, client généré ni transaction PostgreSQL n’a été exécuté. Il faudra notamment ajouter les contraintes SQL de quantités, les transactions et verrous de réservation, les tables d’authentification et le stockage chiffré des données destinataires à durée limitée avant activation réelle.
 

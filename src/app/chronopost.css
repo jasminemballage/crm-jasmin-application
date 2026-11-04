@@ -1,0 +1,40 @@
+.modal.chronopost-dialog{max-width:1150px;width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.chronopost-dialog>.modal-head{flex-shrink:0}
+.chrono-panel{overflow:auto;padding:20px 26px 28px;font-size:13px;color:var(--ink)}
+.chrono-context{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}
+.chrono-context>span,.chrono-context>button{display:flex;gap:8px;align-items:center}
+.chrono-context>span{font-weight:600;overflow-wrap:anywhere}
+.chrono-callout{display:flex;align-items:flex-start;gap:12px;padding:16px;background:#f5f7ef;border:1px solid var(--line);border-radius:10px;margin-bottom:20px;color:#485c44}
+.chrono-callout>svg{flex-shrink:0}
+.chrono-callout p{font-size:12px;line-height:1.7;margin:5px 0 8px}
+.chrono-callout>.text-button{margin-left:auto;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.chrono-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px}
+.chrono-panel form{padding:0}
+.chrono-columns h3{display:flex;align-items:center;gap:8px;font-size:16px;margin:0 0 14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.chrono-help{font-size:12px;line-height:1.7;color:#52614e;margin:12px 0 16px}
+.chrono-address-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.chrono-address-fields .field,.chrono-shipment>.field{color:#465641;font-size:12px}
+.chrono-address-fields .chrono-full{grid-column:1/-1}
+.chrono-address-fields input{width:100%;min-width:0}
+.chrono-address-fields input[aria-invalid=true]{border-color:#ba6650}
+.chrono-summary{margin:16px 0}
+.chrono-summary>div{display:flex;justify-content:space-between;gap:18px;padding:10px 0;border-bottom:1px solid var(--line)}
+.chrono-summary dt{color:#53634e}
+.chrono-summary dd{font-weight:600;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.chrono-sender{background:#f5f7f1;border-radius:8px;padding:14px;margin-block:18px}
+.chrono-sender strong{font-size:12px}.chrono-sender p{font-size:12px;line-height:1.8;margin-top:5px}
+.chrono-confirm{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.7;margin:20px 0;color:#455840}
+.chrono-confirm input{margin-top:4px;accent-color:var(--green);flex-shrink:0}
+.chrono-generate{width:100%;justify-content:center}
+.chrono-success{padding-top:18px;border-top:1px solid var(--line);color:#256b51}
+.chrono-success h4{font-size:17px;margin:8px 0}.chrono-success p{line-height:1.7;margin:10px 0;font-size:12px}.chrono-success .button{margin-top:8px}
+.chrono-empty{text-align:center;padding:40px 20px;color:#53694a}.chrono-empty h3{margin:12px 0;font-size:18px}.chrono-empty p{margin:10px auto 20px;line-height:1.7;max-width:450px}
+.chrono-panel :focus-visible{outline:2px solid var(--green);outline-offset:3px}
+@media(max-width:760px){.chrono-columns{grid-template-columns:1fr;gap:24px}.chrono-panel{padding:18px}.chrono-context{align-items:flex-start;flex-wrap:wrap}.chrono-callout{flex-wrap:wrap}.chrono-callout>.text-button{margin-left:30px}}
+@media(max-width:440px){.chrono-address-fields{grid-template-columns:1fr}.chrono-panel{padding:14px}.chrono-summary>div{font-size:12px}.chrono-context>span{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.chrono-panel .spin{animation:none}}
+
+.chrono-context-actions{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.chrono-context-actions>.text-button{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chrono-context-actions>.text-button:disabled{opacity:.5;cursor:default}
+@media(max-width:760px){.chrono-context-actions{width:100%;justify-content:space-between;gap:12px}}

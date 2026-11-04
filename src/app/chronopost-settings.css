@@ -1,0 +1,41 @@
+.chronopost-settings-panel{grid-column:1/-1}
+.chronopost-settings-panel .chronopost-settings-form{display:flex;flex-direction:column;gap:23px;padding:0 24px 24px}
+.chronopost-settings-panel .chronopost-settings-status{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.chronopost-settings-panel .chronopost-settings-status small{color:var(--muted);font-size:11px;line-height:1.6}
+.chronopost-settings-panel .chronopost-help{margin:0;font-size:12px;color:var(--muted);line-height:1.8;max-width:850px}
+.chronopost-settings-panel .chronopost-help strong{font-weight:600;color:var(--ink)}
+.chronopost-settings-panel .chronopost-settings-fields{display:flex;flex-direction:column;gap:17px;min-width:0;margin:0;padding:22px 0 0;border:0;border-top:1px solid var(--line)}
+.chronopost-settings-panel .chronopost-section-title{padding:0 10px 0 0;font-size:13px;font-weight:600;color:var(--ink)}
+.chronopost-settings-panel .chronopost-fields-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 20px}
+.chronopost-settings-panel .field{min-width:0}
+.chronopost-settings-panel .field input{min-width:0;width:100%}
+.chronopost-settings-panel .field input[readonly]{background:var(--canvas);color:var(--muted)}
+.chronopost-settings-panel .field input[aria-invalid=true],.chronopost-settings-panel .chronopost-password-input>input[aria-invalid=true]{border-color:#af5a32}
+.chronopost-settings-panel .chronopost-field-error{color:#974d2d;font-size:11px;line-height:1.6}
+.chronopost-settings-panel .chronopost-password-field{max-width:710px;display:flex;flex-direction:column;gap:8px}
+.chronopost-settings-panel .chronopost-password-field>small{font-size:11px;color:var(--muted);line-height:1.6}
+.chronopost-settings-panel .chronopost-password-input{position:relative;display:flex;align-items:center}
+.chronopost-settings-panel .chronopost-password-input>input{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;background:white;padding:11px 49px 11px 12px;color:var(--ink);font:inherit;font-size:12px}
+.chronopost-settings-panel .chronopost-password-toggle{position:absolute;right:5px;display:grid;place-items:center;border:0;background:transparent;border-radius:6px;color:var(--green);width:36px;height:36px;cursor:pointer}
+.chronopost-settings-panel .chronopost-password-toggle:hover{background:var(--green-soft)}
+.chronopost-settings-panel .chronopost-password-toggle:focus-visible,.chronopost-settings-panel input:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.chronopost-settings-panel .chronopost-options{display:flex;flex-direction:column;gap:12px;font-size:12px;color:var(--ink)}
+.chronopost-settings-panel .chronopost-options label{display:flex;align-items:flex-start;gap:9px;line-height:1.6}
+.chronopost-settings-panel .chronopost-options input{accent-color:var(--green);margin-top:3px;flex-shrink:0}
+.chronopost-settings-panel .chronopost-channel-list{display:flex;flex-direction:column;gap:16px}
+.chronopost-settings-panel .chronopost-channel{padding:18px;border:1px solid var(--line);border-radius:9px;background:var(--canvas)}
+.chronopost-settings-panel .chronopost-channel-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.chronopost-settings-panel .chronopost-channel-heading h3{margin:0;color:var(--ink);font-size:13px;font-weight:600}
+.chronopost-settings-panel .chronopost-channel-heading .button{font-size:10px;padding:7px 10px}
+.chronopost-settings-panel .chronopost-channel-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.chronopost-settings-panel .chronopost-feedback-slot{min-height:28px}
+.chronopost-settings-panel .chronopost-feedback-slot p{margin:0}
+.chronopost-settings-panel .chronopost-settings-save{display:flex;justify-content:space-between;align-items:center;gap:15px;border-top:1px solid var(--line);padding-top:20px}
+.chronopost-settings-panel .chronopost-settings-save>small{font-size:11px;line-height:1.6;color:var(--muted)}
+.chronopost-settings-panel .chronopost-settings-save>.button{min-height:40px;flex-shrink:0}
+.chronopost-settings-panel .chronopost-feedback,.chronopost-settings-panel .chronopost-load-error{padding:0 24px 24px;font-size:12px;color:var(--muted)}
+.chronopost-settings-panel .chronopost-feedback{display:flex;align-items:center;gap:9px}
+.chronopost-settings-panel :disabled:not(fieldset){cursor:default;opacity:.65}
+@media(max-width:1000px){.chronopost-settings-panel .chronopost-channel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.chronopost-settings-panel .chronopost-settings-form{padding:0 17px 20px}.chronopost-settings-panel .chronopost-fields-grid,.chronopost-settings-panel .chronopost-channel-grid{grid-template-columns:1fr}.chronopost-settings-panel .chronopost-channel{padding:14px}.chronopost-settings-panel .chronopost-channel-heading,.chronopost-settings-panel .chronopost-settings-save{flex-direction:column;align-items:flex-start}.chronopost-settings-panel .chronopost-settings-save>.button{width:100%;font-size:10px}.chronopost-settings-panel .chronopost-channel-heading .button{white-space:normal;text-align:left}}
+@media(prefers-reduced-motion:reduce){.chronopost-settings-panel .spin{animation:none}}

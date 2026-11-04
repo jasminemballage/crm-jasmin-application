@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { atomicWriteFile } from "./atomic-file";
+import { withSettingsFileLock } from "./settings-file-lock";
 import { aiSettingsInput, type AiStatus } from "./ai-contract";
 
 const defaults = { textModel: "openai/gpt-4o-mini", imageModel: "google/gemini-2.5-flash-image",
@@ -38,7 +39,6 @@ export function publicAiStatus(settings: Awaited<ReturnType<typeof getAiSettings
   return { enabled: settings.enabled, keyPresent: !!settings.apiKey, textReady: settings.enabled && !!settings.textModel,
     imageReady: settings.enabled && !!settings.imageModel, textModel: settings.textModel, imageModel: settings.imageModel, imageRules: settings.imageRules };
 }
-let pending: Promise<unknown> = Promise.resolve();
 export function saveAiSettings(input: unknown, file = aiConfigFile()) {
   const run = async () => {
     const data = aiSettingsInput.parse(input); const old = await envText(file);
@@ -52,5 +52,5 @@ export function saveAiSettings(input: unknown, file = aiConfigFile()) {
     await atomicWriteFile(file, next, 0o600);
     return publicAiStatus(await getAiSettings(file));
   };
-  const result = pending.then(run, run); pending = result.catch(() => {}); return result;
+  return withSettingsFileLock(file, run);
 }
