@@ -1,0 +1,18 @@
+node_modules/
+.next/
+.local/
+.pnpm-store/
+.sites-runtime/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+src/generated/
+test-results/
+sauvegardes/
+
+# Références métier et preuves d’essais conservées uniquement sur le poste.
+docs/references/
+docs/apercus/
+docs/validation*.json
+docs/REPRISE_FICHE_*.json

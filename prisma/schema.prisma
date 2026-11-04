@@ -1,0 +1,131 @@
+// Target model for the next PostgreSQL milestone. Not used by the local demo.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+datasource db {
+  provider = "postgresql"
+}
+enum OrderStatus {
+  REVIEW
+  READY
+  PREPARING
+  PARTIAL
+  SHIPPED
+  CANCELLED
+  ARCHIVED
+}
+enum ShipmentStatus {
+  PREPARED
+  LABEL_PENDING
+  LABEL_CREATED
+  NEEDS_RECONCILIATION
+  DISPATCHED
+  CANCELLED
+}
+model Product {
+  id              String      @id @default(uuid()) @db.Uuid
+  sku             String      @unique @db.VarChar(40)
+  name            String      @db.VarChar(160)
+  category        String      @db.VarChar(50)
+  unitsPerPack    Int
+  packsPerCarton  Int
+  priceCents      Int
+  weightGrams     Int
+  info            Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  stock           StockItem?
+  orderLines      OrderLine[]
+  movements       StockMovement[]
+}
+model StockItem {
+  productId       String      @id @db.Uuid
+  product         Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  onHandPacks     Int         @default(0)
+  safetyPacks     Int         @default(0)
+  version         Int         @default(0)
+  updatedAt       DateTime    @updatedAt
+}
+model ChannelAccount {
+  id              String      @id @default(uuid()) @db.Uuid
+  channel         String      @db.VarChar(30)
+  externalId      String      @db.VarChar(160)
+  orders          Order[]
+  @@unique([channel, externalId])
+}
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  accountId       String      @db.Uuid
+  account         ChannelAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  externalId      String      @db.VarChar(160)
+  status          OrderStatus @default(REVIEW)
+  historical      Boolean     @default(false)
+  orderedAt       DateTime
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  lines           OrderLine[]
+  shipments       Shipment[]
+  // Recipient PII will have a separate encrypted, expiring store.
+  @@unique([accountId, externalId])
+  @@index([status, orderedAt])
+}
+model OrderLine {
+  id              String      @id @default(uuid()) @db.Uuid
+  orderId         String      @db.Uuid
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  externalLineId  String      @db.VarChar(160)
+  productId       String      @db.Uuid
+  product         Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity        Int
+  packsPerSale    Int
+  shippedPacks    Int         @default(0)
+  unitPriceCents  Int
+  allocations     ShipmentAllocation[]
+  @@unique([orderId, externalLineId])
+  @@index([productId])
+}
+model Shipment {
+  id              String      @id @default(uuid()) @db.Uuid
+  orderId         String      @db.Uuid
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  status          ShipmentStatus @default(PREPARED)
+  idempotencyKey  String      @unique
+  carrierId       String?     @unique
+  weightGrams     Int
+  lengthCm        Int
+  widthCm         Int
+  heightCm        Int
+  createdAt       DateTime    @default(now())
+  dispatchedAt    DateTime?
+  allocations     ShipmentAllocation[]
+}
+model ShipmentAllocation {
+  shipmentId      String      @db.Uuid
+  shipment        Shipment    @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  lineId          String      @db.Uuid
+  line            OrderLine   @relation(fields: [lineId], references: [id], onDelete: Restrict)
+  packs           Int
+  @@id([shipmentId, lineId])
+}
+model StockMovement {
+  id              String      @id @default(uuid()) @db.Uuid
+  productId       String      @db.Uuid
+  product         Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  deltaPacks      Int
+  reason          String      @db.VarChar(500)
+  idempotencyKey  String      @unique
+  actorId         String      @db.VarChar(160)
+  createdAt       DateTime    @default(now())
+  @@index([productId, createdAt])
+}
+model AuditEvent {
+  id              String      @id @default(uuid()) @db.Uuid
+  actorId         String      @db.VarChar(160)
+  action          String      @db.VarChar(80)
+  targetId        String      @db.VarChar(160)
+  // No recipient data or credentials in event descriptions.
+  description     String      @db.VarChar(500)
+  createdAt       DateTime    @default(now())
+  @@index([createdAt])
+}
