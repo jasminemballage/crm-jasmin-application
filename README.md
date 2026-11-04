@@ -4,7 +4,7 @@ Code source : dépôt public [jasminemballage/crm-jasmin-application](https://gi
 
 Correctif du 4 novembre : budget de génération adapté aux modèles avec raisonnement, et état de préparation animé dans la fiche produit. Voir le [diagnostic et les vérifications](docs/CORRECTIF_2026-11-04_ENRICHISSEMENT.md).
 
-Cette étape fournit une application utilisable sur cet ordinateur pour valider le parcours métier avec Jasmin. **Toutes les commandes initiales sont fictives. Les marketplaces ne sont pas connectées. Le connecteur Chronopost est disponible en configuration locale, sans validation d’un envoi réel.**
+Cette étape fournit une application utilisable sur cet ordinateur pour valider le parcours métier avec Jasmin. **Toutes les commandes initiales sont fictives. Les marketplaces ne sont pas connectées. Le connecteur Chronopost est configuré localement et une première génération de PDF sur le contrat utilisateur a été confirmée.**
 
 Le dépôt de code exclut les clés et configurations locales, les données enregistrées, les médias locaux, les sauvegardes, ainsi que les PDF/captures de référence et preuves d’essais. Ces éléments restent dans la copie locale du projet ; certains liens documentaires vers ces pièces nécessitent cette copie.
 
@@ -79,7 +79,7 @@ Le [parcours d’essai guidé](docs/ESSAI_GUIDE.md) utilise uniquement les modè
 - Commandes historiques closes en consultation, sans impact stock.
 - Journal des actions et mouvements ; export CSV protégé contre l’interprétation de formules.
 - Commandes multicanales filtrables et détail client, livraison, articles et créneaux.
-- Configuration Chronopost par canal et génération PDF avec protection contre les doubles créations ; validation réelle du contrat encore nécessaire.
+- Configuration Chronopost par canal et génération PDF avec protection contre les doubles créations ; authentification du contrat et première génération de PDF confirmées, suivi et remise physique encore à vérifier.
 - Marketplaces : **non connectées** ; les données manquantes restent signalées.
 
 Le stockage de démonstration utilise un fichier et un verrou dans **un seul processus local**. Il n’est pas une base partagée ni un système de sauvegarde. Les routes refusent les hôtes distants et les écritures depuis une origine différente. Le mode production est bloqué par défaut ; `CRM_LOCAL_DEMO=1` ne sert qu’aux essais sur localhost et ne rend pas ce logiciel exploitable sur un serveur.
@@ -106,6 +106,8 @@ Pour les tests navigateur, démarrer le serveur local puis installer le navigate
 `prisma/schema.prisma` est le modèle initial de la prochaine étape. Il n’est pas encore relié à l’application. Aucun serveur PostgreSQL, migration, client généré ni transaction PostgreSQL n’a été exécuté. Il faudra notamment ajouter les contraintes SQL de quantités, les transactions et verrous de réservation, les tables d’authentification et le stockage chiffré des données destinataires à durée limitée avant activation réelle.
 
 ## Prochaine étape du projet
+
+À la demande de Tim en fin de séance du 4 novembre, la prochaine étape est le branchement de toutes les données sur Supabase pour partager les modifications entre le poste local et Vercel. Cette intégration est reportée à la prochaine séance ; aucune base n’a encore été créée. Voir le [bilan de reprise](docs/REPRISE_2026-11-04.md).
 
 Valider les écrans et les conditionnements avec Jasmin, puis intégrer PostgreSQL, les deux comptes avec double authentification et les procédures de sécurité. Ensuite seulement : VPS, sauvegardes testées, autorisation Amazon, pilote commandes/stock/Chronopost, puis les autres canaux.
 

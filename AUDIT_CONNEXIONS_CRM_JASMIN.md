@@ -4,7 +4,7 @@ Mis à jour le 19 octobre 2026. Lot 0 du [plan de développement](PLAN_CRM_JASMI
 
 ## Ajout du 4 novembre 2026
 
-Le CRM possède maintenant le connecteur SOAP Chronopost `shippingV7`, une configuration par canal et le téléchargement des étiquettes PDF. Les tests automatisés utilisent un transporteur simulé. L’authentification du contrat a été vérifiée par une consultation de tarif ; un PDF a été généré sur le contrat officiel de test. Le premier envoi valide sur le contrat utilisateur reste à confirmer. La première version couvre les colis domicile en France métropolitaine. Les connexions marketplaces et les validations de sécurité/hébergement ci-dessous restent à réaliser. Voir [le bilan](docs/COMMANDES_CHRONOPOST_2026-11-04.md).
+Le CRM possède maintenant le connecteur SOAP Chronopost `shippingV7`, une configuration par canal et le téléchargement des étiquettes PDF. Les tests automatisés utilisent un transporteur simulé. L’authentification du contrat a été vérifiée par une consultation de tarif ; un PDF a été généré sur le contrat officiel de test. Le nouvel essai utilisateur après correction a retourné un numéro de suivi et un PDF local valide. La remise physique et le suivi transporteur ne sont pas vérifiés. La première version couvre les colis domicile en France métropolitaine. Les connexions marketplaces et les validations de sécurité/hébergement ci-dessous restent à réaliser. Voir [le bilan](docs/COMMANDES_CHRONOPOST_2026-11-04.md).
 
 ## État de l’audit
 
