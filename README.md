@@ -1,6 +1,6 @@
 # CRM Jasmin — version locale 0.3.3
 
-Code source : dépôt privé [jasminemballage/crm-jasmin-application](https://github.com/jasminemballage/crm-jasmin-application).
+Code source : dépôt public [jasminemballage/crm-jasmin-application](https://github.com/jasminemballage/crm-jasmin-application).
 
 Cette étape fournit une application utilisable sur cet ordinateur pour valider le parcours métier avec Jasmin. **Toutes les données initiales sont fictives. Aucun canal ni transporteur n’est connecté.**
 
