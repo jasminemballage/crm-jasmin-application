@@ -106,6 +106,8 @@ export default function CRM({ page }: { page: string }) {
   const name = nav.find(n => n.path === page)?.label ?? "Jasmin";
   const products = state?.products.filter(p => `${p.name} ${p.sku}`.toLowerCase().includes(query.toLowerCase()) &&
     (filter === "all" || (page === "stocks" ? availablePacks(state!, p) <= 5 : p.category === filter))) ?? [];
+  // Products are stored in creation order; reverse only the filtered catalogue copy.
+  if (page === "catalogue") products.reverse();
   const orders = state?.orders.filter(o => `${o.externalId} ${o.customer} ${o.city}`.toLowerCase().includes(query.toLowerCase()) &&
     (filter === "all" || o.status === filter) && (channel === "all" || o.channel === channel)) ?? [];
   const active = state?.orders.filter(isActive) ?? [];
