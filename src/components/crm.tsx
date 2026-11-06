@@ -63,33 +63,60 @@ function Dialog({ title, close, children, className = "" }: { title: string; clo
   </div>;
 }
 
-export default function CRM({ page }: { page: string }) {
+export default function CRM({ page, shared = false, email }: { page: string; shared?: boolean; email?: string }) {
   const [state, setState] = useState<State | null>(null);
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [modal, setModal] = useState<Modal | null>(null);
+  const modalRevision = useRef<number | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [formError, setFormError] = useState("");
   const [stockUnit, setStockUnit] = useState("pack");
   const [stockQty, setStockQty] = useState(1);
-  async function reload() {
+  async function logout() {
+    if (busy) return;
+    setBusy(true);
     try {
-      const response = await fetch("/api/demo/state", { cache: "no-store" });
+      const response = await fetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      window.location.assign("/connexion");
+    } catch (error) { setToast({ text: error instanceof Error ? error.message : "Déconnexion indisponible.", error: true }); setBusy(false); }
+  }
+  async function reload(signal?: AbortSignal) {
+    try {
+      const response = await fetch("/api/demo/state", { cache: "no-store", signal });
       const body = await response.json();
+      if (signal?.aborted) return;
+      if (response.status === 401 && shared) { window.location.assign(`/connexion?next=${encodeURIComponent(`/${page}`)}`); return; }
       if (!response.ok) throw new Error(body.error);
       setState(body); setLoadError("");
-    } catch (error) { setLoadError(error instanceof Error ? error.message : "Chargement indisponible."); }
+    } catch (error) { if (!signal?.aborted) setLoadError(error instanceof Error ? error.message : "Chargement indisponible."); }
   }
   useEffect(() => { void reload(); }, []);
+  useEffect(() => {
+    // A form keeps its original state revision: another member's edit must still
+    // produce a conflict rather than silently rebasing unsaved field values.
+    if (!shared || busy || modal) return;
+    const controller = new AbortController();
+    const refresh = () => { if (document.visibilityState === "visible") void reload(controller.signal); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [shared, busy, modal, page]);
   useEffect(() => { setQuery(""); setFilter("all"); setModal(null); }, [page]);
   useEffect(() => { if (toast) { const timer = setTimeout(() => setToast(null), 7000); return () => clearTimeout(timer); } }, [toast]);
   const close = useRef(() => {});
   close.current = () => { if (!busy) { setModal(null); setFormError(""); } };
   const closeStable = useRef(() => close.current()).current;
-  function open(value: Modal) { setFormError(""); setStockQty(1); setStockUnit("pack"); setModal(value); }
-  async function mutate(action: Action, message: string, expectedRevision = state?.revision) {
+  function open(value: Modal) { modalRevision.current = state?.revision; setFormError(""); setStockQty(1); setStockUnit("pack"); setModal(value); }
+  async function mutate(action: Action, message: string, expectedRevision = modal ? modalRevision.current : state?.revision) {
     if (!state || busy) return;
     setBusy(true); setFormError("");
     try {
@@ -128,9 +155,9 @@ export default function CRM({ page }: { page: string }) {
       <p className="nav-label">PILOTER MON ACTIVITÉ</p>
       <nav aria-label="Navigation principale">{nav.map(({ path, label, icon: Icon }) => <Link key={path} href={`/${path}`} aria-label={label} title={label} aria-current={page === path ? "page" : undefined} className={`nav-item ${page === path ? "active" : ""}`}><Icon size={19} strokeWidth={1.7} /><span>{label}</span>{path === "commandes" && active.length > 0 && <b>{active.length}</b>}</Link>)}</nav>
       <div className="sidebar-bottom"><span className="local-dot" /><div><strong>Votre entrepôt</strong><small>1 lieu de stockage · paquets</small></div><Package size={19} /></div>
-      <div className="sidebar-version">JASMIN CRM <span>v0.3 · local</span></div>
+      <div className="sidebar-version">JASMIN CRM <span>v0.3 · {shared ? "partagé" : "local"}</span></div>
     </aside>
-    <div className="main-shell"><header className="topbar"><div className="breadcrumb">Espace Jasmin <ChevronRight size={14} /><strong>{name}</strong></div><div className="topbar-right"><span className="local-tag"><i />Sur cet ordinateur</span><span className="avatar" title="Espace de démonstration">JE</span></div></header>
+    <div className="main-shell"><header className="topbar"><div className="breadcrumb">Espace Jasmin <ChevronRight size={14} /><strong>{name}</strong></div><div className="topbar-right"><span className="local-tag"><i />{shared ? "Espace partagé" : "Sur cet ordinateur"}</span>{shared && <button className="text-button" onClick={() => void logout()} disabled={busy} title={email}>Se déconnecter</button>}<span className="avatar" title="Espace de démonstration">JE</span></div></header>
       <div className="demo-strip"><span><span className="demo-label">DÉMONSTRATION</span>Commandes de démonstration · Marketplaces non connectées. Chronopost se configure dans Paramètres.</span><Link href="/connexions">Voir les connexions <ArrowRight size={14} /></Link></div>
       <main><div className="page-heading"><div><span className="eyebrow">{page === "" ? "VOTRE ACTIVITÉ EN UN REGARD" : "GESTION COMMERCIALE"}</span><h1>{page === "" ? "Bonjour Jasmin" : name}<span className="heading-dot">.</span></h1><p>{({ "": "L’essentiel pour préparer les commandes et garder le stock à jour.", catalogue: "Un catalogue commun, des conditionnements bien définis.", stocks: "Chaque paquet compte. Un seul stock pour tous vos canaux.", commandes: "De la commande à la remise du colis, suivez chaque étape.", expeditions: "Préparez vos colis et essayez le parcours d’expédition.", connexions: "Retrouvez les accès à préparer pour vos canaux de vente.", parametres: "Les réglages et les prochaines étapes de votre espace." } as Record<string, string>)[page]}</p></div>
         <div className="heading-actions">{page === "" && <span className="today">{new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</span>}
@@ -151,9 +178,9 @@ export default function CRM({ page }: { page: string }) {
           <section className="panel attention-panel"><div className="panel-head"><div><span className="eyebrow">À SUIVRE</span><h2>Votre point d’attention</h2></div><CircleAlert size={21} /></div>
             <div className="attention-item"><div className="attention-icon amber"><Boxes size={19} /></div><div><strong>{low.length} références à surveiller</strong><p>Anticipez les réapprovisionnements.</p><Link href="/stocks">Consulter le stock <ArrowRight size={14} /></Link></div></div>
             <div className="attention-item"><div className="attention-icon blue"><ClipboardList size={19} /></div><div><strong>{state.orders.filter(o => o.status === "review").length} commande à vérifier</strong><p>Validez les données test avant préparation.</p><Link href="/commandes">Ouvrir les commandes <ArrowRight size={14} /></Link></div></div>
-            <div className="next-step"><span className="eyebrow">NOTRE PROCHAINE ÉTAPE</span><h3>Relier vos ventes</h3><p>Le socle local est prêt à essayer. Les accès Amazon et Chronopost restent à finaliser.</p><Link className="button secondary" href="/connexions">Suivre les connexions <ArrowRight size={15} /></Link></div>
+            <div className="next-step"><span className="eyebrow">NOTRE PROCHAINE ÉTAPE</span><h3>Relier vos ventes</h3><p>{shared ? "Votre équipe retrouve les mêmes données. Les accès marketplaces restent à configurer." : "Le socle local est prêt à essayer. Les accès Amazon et Chronopost restent à finaliser."}</p><Link className="button secondary" href="/connexions">Suivre les connexions <ArrowRight size={15} /></Link></div>
           </section></div>
-        <div className="dashboard-lower"><section className="panel"><div className="panel-head"><div><h2>Activité récente</h2><p>Les actions enregistrées dans cet espace</p></div><span className="soft-label">Enregistré localement</span></div><div className="timeline">{state.events.slice(0, 5).map(e => <div className="timeline-item" key={e.id}><span className="timeline-dot" /><div><p>{e.description}</p><small>{date(e.at)}</small></div></div>)}</div></section>
+        <div className="dashboard-lower"><section className="panel"><div className="panel-head"><div><h2>Activité récente</h2><p>Les actions enregistrées dans cet espace</p></div><span className="soft-label">{shared ? "Enregistré dans l’espace partagé" : "Enregistré localement"}</span></div><div className="timeline">{state.events.slice(0, 5).map(e => <div className="timeline-item" key={e.id}><span className="timeline-dot" /><div><p>{e.description}</p><small>{date(e.at)}</small></div></div>)}</div></section>
           <section className="workflow-card"><span className="eyebrow">UN FLUX SIMPLE</span><h2>Du stock au colis.</h2><p>Les réservations protègent le stock pendant la préparation.</p><ol><li><b>1</b>Commande reçue<span>Le stock est réservé</span></li><li><b>2</b>Colis préparé<span>Le physique reste inchangé</span></li><li><b>3</b>Remise confirmée<span>Le stock physique est déduit</span></li></ol></section></div>
       </>}
 
@@ -183,11 +210,11 @@ export default function CRM({ page }: { page: string }) {
       ].map(([title, letter, subtitle, description]) => <section className="panel connection-card" key={title}><div className="connection-top"><span className={`connection-logo logo-${title.replaceAll(" ", "-")}`}>{letter}</span><span className="badge disconnected">{title === "Chronopost" ? "Contrat à vérifier" : "Non connecté"}</span></div><h2>{title}</h2><strong className="connection-subtitle">{subtitle}</strong><p>{description}</p><div className="connection-foot"><span>{title === "Chronopost" ? "Configuration par canal" : "Dernier échange : aucun"}</span>{title === "Chronopost" ? <Link href="/parametres#chronopost" className="text-link">Configurer <ArrowUpRight size={14} /></Link> : <span>À préparer <ArrowUpRight size={14} /></span>}</div></section>)}</div><p className="footnote">Les connexions marketplaces restent à configurer. Le contrat Chronopost et ses réglages par canal se renseignent dans Paramètres.</p></>}
 
       {page === "parametres" && <div className="settings-grid"><AiSettingsPanel /><ChronopostSettingsPanel /><section className="panel"><div className="panel-head"><div><h2>Votre organisation</h2><p>Les décisions prises ensemble</p></div><Flower2 size={23} /></div><dl className="settings-list"><div><dt>Entreprise</dt><dd>Jasmin Emballage</dd></div><div><dt>Entrepôts</dt><dd>1 entrepôt principal</dd></div><div><dt>Unité de stock</dt><dd>Paquet indivisible</dd></div><div><dt>Conditionnement</dt><dd>Paquets par carton, par produit</dd></div><div><dt>Utilisateurs prévus</dt><dd>2 comptes individuels</dd></div><div><dt>Transporteur prévu</dt><dd>Chronopost · A4 · France et UE</dd></div></dl></section>
-        <section className="panel"><div className="panel-head"><div><h2>Avant la mise en service</h2><p>Protections à construire et à vérifier</p></div><ShieldCheck size={22} /></div><div className="checklist">{[["Comptes individuels et double authentification", "À développer"], ["Base de données partagée", "À intégrer"], ["VPS et accès HTTPS", "À préparer"], ["Sauvegardes chiffrées hors serveur", "À préparer"], ["Procédures et preuves de sécurité Amazon", "À établir"]].map(([a, b]) => <div key={a}><span className="pending-circle" /><span>{a}</span><small>{b}</small></div>)}</div></section>
-        <section className="panel"><div className="panel-head"><div><h2>Données de démonstration</h2><p>Vos essais sont conservés sur cet ordinateur.</p></div><Download size={21} /></div><div className="settings-body"><p>Exportez le catalogue et les commandes pour consulter les données dans votre tableur, ou conservez une copie complète de vos essais.</p><div className="settings-actions"><a className="button secondary" href="/api/demo/export?kind=products"><Download size={16} />Catalogue CSV</a><a className="button secondary" href="/api/demo/export?kind=orders"><Download size={16} />Commandes CSV</a><a className="button secondary" href="/api/demo/export?kind=backup"><Download size={16} />Copie des donnees JSON</a></div></div></section>
-        <section className="panel"><div className="panel-head"><div><h2>Recommencer les essais</h2><p>Retrouver le jeu initial de produits et commandes.</p></div><RefreshCw size={21} /></div><div className="settings-body"><p>La réinitialisation efface les modifications de cet espace de démonstration. Exportez une copie si vous souhaitez les conserver.</p><button className="button danger-outline" onClick={() => open({ kind: "reset" })}><RefreshCw size={16} />Réinitialiser la démonstration</button></div></section></div>}
+        <section className="panel"><div className="panel-head"><div><h2>Avant la mise en service</h2><p>Protections à construire et à vérifier</p></div><ShieldCheck size={22} /></div><div className="checklist">{[["Comptes individuels", shared ? "Activés" : "À développer"], ["Double authentification", "À développer"], ["Base de données partagée", shared ? "Activée" : "À intégrer"], ["Hébergement et accès HTTPS", "À vérifier"], ["Sauvegardes chiffrées hors serveur", "À préparer"], ["Procédures et preuves de sécurité Amazon", "À établir"]].map(([a, b]) => <div key={a}><span className="pending-circle" /><span>{a}</span><small>{b}</small></div>)}</div></section>
+        <section className="panel"><div className="panel-head"><div><h2>{shared ? "Exporter les données" : "Données de démonstration"}</h2><p>{shared ? "Les données sont partagées avec votre équipe." : "Vos essais sont conservés sur cet ordinateur."}</p></div><Download size={21} /></div><div className="settings-body"><p>Exportez le catalogue et les commandes pour consulter les données dans votre tableur, ou conservez une copie complète de vos essais.</p><div className="settings-actions"><a className="button secondary" href="/api/demo/export?kind=products"><Download size={16} />Catalogue CSV</a><a className="button secondary" href="/api/demo/export?kind=orders"><Download size={16} />Commandes CSV</a><a className="button secondary" href="/api/demo/export?kind=backup"><Download size={16} />Copie des donnees JSON</a></div></div></section>
+        {!shared && <section className="panel"><div className="panel-head"><div><h2>Recommencer les essais</h2><p>Retrouver le jeu initial de produits et commandes.</p></div><RefreshCw size={21} /></div><div className="settings-body"><p>La réinitialisation efface les modifications de cet espace de démonstration. Exportez une copie si vous souhaitez les conserver.</p><button className="button danger-outline" onClick={() => open({ kind: "reset" })}><RefreshCw size={16} />Réinitialiser la démonstration</button></div></section>}</div>}
       </>}
-      <footer className="page-footer"><span><Flower2 size={14} />Jasmin · Votre activité, au même endroit.</span><span>Données de démonstration · v0.3</span></footer></main>
+      <footer className="page-footer"><span><Flower2 size={14} />Jasmin · Votre activité, au même endroit.</span><span>{shared ? "Espace partagé · v0.3" : "Données de démonstration · v0.3"}</span></footer></main>
     </div>
     {toast && <div className={`toast ${toast.error ? "toast-error" : ""}`} role="status">{toast.error ? <CircleAlert size={19} /> : <CheckCircle2 size={19} />}<span>{toast.text}</span><button aria-label="Masquer le message" className="icon-button" onClick={() => setToast(null)}><X size={16} /></button></div>}
     {state && modal && <Dialog title={modal.kind === "import" ? modal.target === "products" ? "Importer le catalogue" : "Importer un inventaire" : modal.kind === "product" ? modal.id ? "Modifier le produit" : "Nouveau produit" : modal.kind === "stock" ? "Enregistrer un mouvement" : modal.kind === "order" ? "Créer une commande test" : modal.kind === "detail" ? `Commande ${state.orders.find(o => o.id === modal.id)?.externalId ?? ""}` : modal.kind === "chrono" ? "Étiquette Chronopost" : modal.kind === "prepare" ? "Préparer un colis" : modal.kind === "cancel" ? "Annuler le solde de la commande" : modal.kind === "dispatch" ? "Simuler la remise du colis" : "Réinitialiser les essais"} close={closeStable} className={modal.kind === "detail" ? "order-detail-dialog" : modal.kind === "chrono" ? "chronopost-dialog" : ""}>

@@ -3,7 +3,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DomainError } from "./domain";
 import type { ImageAsset } from "./product-info";
+import { isSupabaseMode } from "./supabase/config";
+import { downloadPrivateObject, uploadPrivateObject, privateObjectUrl } from "./supabase/storage";
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// Keep browser uploads below Vercel's request body limit. Existing/AI images may be larger.
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const mediaName = /^[a-f0-9-]{36}\.(png|jpg|webp)$/;
 export function mediaDirectory() {
   return process.env.CRM_DEMO_DATA_FILE
@@ -18,18 +22,23 @@ export function imageFormat(bytes: Uint8Array) {
   if (head.toString("ascii", 0, 4) === "RIFF" && head.toString("ascii", 8, 12) === "WEBP") return { ext: "webp", mime: "image/webp" };
   throw new DomainError("Seules les images PNG, JPEG ou WebP sont acceptées.");
 }
-export async function storeImage(bytes: Uint8Array, details: { kind: "uploaded" | "generated"; alt: string; prompt?: string }, directory = mediaDirectory()): Promise<ImageAsset> {
+export async function storeImage(bytes: Uint8Array, details: { kind: "uploaded" | "generated"; alt: string; prompt?: string }, directory?: string): Promise<ImageAsset> {
   const format = imageFormat(bytes); const id = randomUUID(); const filename = `${id}.${format.ext}`;
-  await mkdir(directory, { recursive: true });
-  await writeFile(path.join(directory, filename), bytes, { flag: "wx" });
+  if (directory === undefined && isSupabaseMode()) await uploadPrivateObject(`media/${filename}`, bytes, format.mime);
+  else { const root = directory ?? mediaDirectory(); await mkdir(root, { recursive: true });
+    await writeFile(path.join(root, filename), bytes, { flag: "wx" }); }
   return { id, url: `/api/demo/media/${filename}`, alt: details.alt.slice(0, 250), kind: details.kind,
     reviewed: details.kind === "uploaded", sourceUrl: "", prompt: (details.prompt ?? "").slice(0, 3000) };
 }
-export async function readImage(filename: string, directory = mediaDirectory()) {
+export async function readImage(filename: string, directory?: string) {
   if (!mediaName.test(filename)) throw new DomainError("Image introuvable.", 404);
-  try { const bytes = await readFile(path.join(directory, filename)); return { bytes, mime: imageFormat(bytes).mime }; }
+  try { const bytes = directory === undefined && isSupabaseMode() ? await downloadPrivateObject(`media/${filename}`) : await readFile(path.join(directory ?? mediaDirectory(), filename)); return { bytes, mime: imageFormat(bytes).mime }; }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DomainError("Image introuvable.", 404); throw error; }
 }
 export async function validateLocalImages(images: ImageAsset[]) {
   for (const image of images) if (image.url.startsWith("/api/demo/media/")) await readImage(image.url.slice("/api/demo/media/".length));
+}
+export async function sharedImageUrl(filename: string) {
+  if (!mediaName.test(filename)) throw new DomainError("Image introuvable.", 404);
+  return privateObjectUrl(`media/${filename}`);
 }

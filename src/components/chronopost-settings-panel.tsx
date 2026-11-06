@@ -49,7 +49,7 @@ export default function ChronopostSettingsPanel() {
     setLoading(true); setError("");
     fetch(endpoint, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) })
       .then(settingsResponse).then(data => {
-        if (!controller.signal.aborted) setSettings(data);
+        if (!controller.signal.aborted) { setSettings(data); setPassword(""); setVisible(false); setClearPassword(false); setErrors({}); setMessage(""); }
       }).catch(failure => {
         if (!controller.signal.aborted) setError(failure instanceof TypeError ? "Le serveur est inaccessible. Vérifiez la connexion puis réessayez." : failure instanceof Error && failure.name !== "TimeoutError" ? failure.message : "Le chargement a expiré. Réessayez.");
       }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -74,7 +74,7 @@ export default function ChronopostSettingsPanel() {
     event.preventDefault();
     if (!settings || submitting.current) return;
     setError(""); setMessage(""); setErrors({});
-    const parsed = chronopostSettingsInput.safeParse({ enabled: settings.enabled, shipper: settings.shipper,
+    const parsed = chronopostSettingsInput.safeParse({ revision: settings.revision, enabled: settings.enabled, shipper: settings.shipper,
       channels: settings.channels, clearPassword, ...(password ? { password } : {}) });
     if (!parsed.success) {
       const nextErrors: Errors = {};
@@ -135,7 +135,7 @@ export default function ChronopostSettingsPanel() {
         <div className="chronopost-channel-list">{channels.map(channel => <div className="chronopost-channel" key={channel}><div className="chronopost-channel-heading"><h3>{channel}</h3><button className="button secondary" type="button" onClick={() => copyChannel(channel)}><Copy size={13} aria-hidden="true" />Recopier sur tous les canaux</button></div><div className="chronopost-channel-grid">{([ ["accountNumber", "N° de compte"], ["subAccount", "Sous-compte"], ["productCode", "Code produit"], ["service", "Code service"] ] as const).map(([key, label]) => <SettingField key={key} path={`channels.${channel}.${key}`} label={label} value={settings.channels[channel][key]} errors={errors} autoComplete="off" maxLength={key === "accountNumber" || key === "subAccount" ? 9 : 3} onChange={value => updateChannel(channel, key, value)} />)}</div></div>)}</div>
       </fieldset>
       <div className="chronopost-feedback-slot" aria-live="polite">{error && <p className="product-error" role="alert"><CircleAlert size={17} aria-hidden="true" />{error}</p>}{message && <p className="import-success" role="status"><Check size={17} aria-hidden="true" />{message}</p>}</div>
-      <div className="chronopost-settings-save"><small>Aucune expédition n’est créée depuis ces paramètres.</small><button className="button" type="submit" disabled={busy || loading}>{busy ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}Enregistrer la configuration Chronopost</button></div>
+      <div className="chronopost-settings-save">{error && <button className="button secondary" type="button" disabled={busy || loading} onClick={() => setReload(value => value + 1)}>Recharger les réglages (remplace mes saisies)</button>}<small>Aucune expédition n’est créée depuis ces paramètres.</small><button className="button" type="submit" disabled={busy || loading}>{busy ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}Enregistrer la configuration Chronopost</button></div>
     </form>}
   </section>;
 }

@@ -1,6 +1,8 @@
-# CRM Jasmin — version locale 0.3.3
+# CRM Jasmin — local et Supabase
 
 Code source : dépôt public [jasminemballage/crm-jasmin-application](https://github.com/jasminemballage/crm-jasmin-application).
+
+Le mode partagé Supabase est disponible dans le code : connexion des membres autorisés, données versionnées dans PostgreSQL, documents privés et réglages chiffrés communs au local et à Vercel. Son activation nécessite le provisionnement du projet et l’import des données locales. Suivre [le guide de branchement Supabase](docs/SUPABASE.md). Le code utilise les migrations `supabase/migrations` ; le schéma Prisma historique n’est pas utilisé à l’exécution.
 
 Correctif du 4 novembre : budget de génération adapté aux modèles avec raisonnement, et état de préparation animé dans la fiche produit. Voir le [diagnostic et les vérifications](docs/CORRECTIF_2026-11-04_ENRICHISSEMENT.md).
 
@@ -14,7 +16,7 @@ Le formulaire **Nouveau produit / Modifier** comprend l’onglet Infos : lien pr
 
 Un brouillon peut être conservé sans titre, poids ou conditionnement connus, avec une référence interne générée si nécessaire. L’activation locale exige les champs métier et la validation des visuels IA. Une fiche active n’est pas automatiquement publiée. Les brouillons ne sont pas proposés pour de nouvelles commandes. Les réservations des commandes déjà reçues restent conservées.
 
-Les photos importées (PNG/JPEG/WebP, 8 Mo par image, 8 images par produit) sont conservées dans `.local/media/` ; le JSON ne contient que leurs métadonnées. Le premier visuel est l’image principale. Les images IA restent des propositions à vérifier avant ajout et activation. La copie JSON seule ne contient pas les fichiers image : conserver aussi le dossier des médias, ou l’archive complète de fin de séance.
+Les photos importées (PNG/JPEG/WebP, 4 Mo par image, 8 images par produit) sont conservées dans `.local/media/` en mode local et dans Storage privé en mode Supabase ; le JSON ne contient que leurs métadonnées. Le premier visuel est l’image principale. Les images IA restent des propositions à vérifier avant ajout et activation. La copie JSON seule ne contient pas les fichiers image : conserver aussi le dossier des médias, ou l’archive complète de fin de séance.
 
 Pour l’IA, ouvrir **Paramètres → Enrichissement IA · OpenRouter** et saisir la clé dans le champ prévu, jamais dans la conversation. La clé est enregistrée dans `.env.local`, côté serveur et ignorée par Git ; elle n’est pas renvoyée par l’API ni incluse dans les sauvegardes. Le fichier local n’est pas chiffré. Les modèles et les règles globales d’image sont modifiables. L’enregistrement de la configuration ne lance aucun appel payant ; les boutons de la fiche utilisent ensuite les crédits du compte OpenRouter.
 

@@ -4,6 +4,8 @@ import { atomicWriteFile } from "./atomic-file";
 import { Action, State } from "./model";
 import { applyAction, DomainError, validateState } from "./domain";
 import { seedState } from "./seed";
+import { isSupabaseMode } from "./supabase/config";
+import { SharedRepository } from "./shared-repository";
 
 /** One local process only. Replace with PostgreSQL transactions before deployment. */
 export class DemoRepository {
@@ -49,4 +51,11 @@ const dataFile = process.env.CRM_DEMO_DATA_FILE ? path.resolve(process.cwd(), pr
 const relativeDataFile = path.relative(localRoot, dataFile);
 if (!relativeDataFile || relativeDataFile.startsWith("..") || path.isAbsolute(relativeDataFile) || !dataFile.endsWith(".json"))
   throw new Error("CRM_DEMO_DATA_FILE doit désigner un fichier JSON dans le dossier .local du projet.");
-export const demoRepository = globalStore.jasminDemo ??= new DemoRepository(dataFile);
+const sharedRepository = new SharedRepository();
+function repository() {
+  return isSupabaseMode() ? sharedRepository : (globalStore.jasminDemo ??= new DemoRepository(dataFile));
+}
+export const demoRepository = {
+  read: () => repository().read(),
+  mutate: (action: Action, revision: number) => repository().mutate(action, revision),
+};

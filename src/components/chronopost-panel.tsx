@@ -139,7 +139,7 @@ export default function ChronopostPanel({ order, state, onPrepare, onBack, onBus
     inflight.current = true; setCreating(true); onBusyChange(true); setError(""); setInvalid([]);
     try {
       unresolvedAttempts.current.add(shipmentId);
-      const response = await fetch("/api/demo/chronopost/labels", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(checked.data), signal: AbortSignal.timeout(75_000) });
+      const response = await fetch("/api/demo/chronopost/labels", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(checked.data), signal: AbortSignal.timeout(180_000) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Chronopost n’a pas confirmé la création de l’étiquette.");
       if (body.status === "created" || body.status === "rejected") unresolvedAttempts.current.delete(shipmentId);

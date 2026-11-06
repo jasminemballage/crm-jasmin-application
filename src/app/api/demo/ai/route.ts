@@ -6,12 +6,13 @@ import { assertLocalRequest } from "@/lib/guard";
 import { readBody } from "@/lib/http-body";
 import { DomainError } from "@/lib/domain";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 const inputSchema = z.discriminatedUnion("action", [enrichmentRequest.extend({ action: z.literal("enrich") }), imageRequest.extend({ action: z.literal("image") })]);
 const running = new Set<string>();
 export async function POST(request: Request) {
   let action = "";
   try {
-    assertLocalRequest(request, true);
+    await assertLocalRequest(request, true);
     const input = inputSchema.parse(JSON.parse((await readBody(request, 50000)).toString("utf8")));
     action = input.action;
     if (running.has(action)) { action = ""; throw new DomainError("Une requête de ce type est déjà en cours. Patientez avant de recommencer.", 429); }

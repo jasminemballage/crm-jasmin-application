@@ -117,16 +117,16 @@ test("un fichier corrompu est conservé sans réinitialisation silencieuse", asy
   await writeFile(file, "{illisible}"); const repo = new DemoRepository(file);
   await assert.rejects(() => repo.read(), /conservé/); assert.equal(await readFile(file, "utf8"), "{illisible}");
 });
-test("la protection locale refuse un accès distant et une origine différente", () => {
-  assert.throws(() => assertLocalRequest(new Request("http://evil.test/api", { headers: { host: "evil.test" } })), DomainError);
-  assert.throws(() => assertLocalRequest(new Request("http://localhost:3000/api", { headers: { host: "localhost:3000", origin: "https://evil.test", "content-type": "application/json" } }), true), /Origine/);
-  assert.doesNotThrow(() => assertLocalRequest(new Request("http://127.0.0.1:3000/api", { headers: { host: "127.0.0.1:3000", origin: "http://127.0.0.1:3000", "content-type": "application/json" } }), true));
+test("la protection locale refuse un accès distant et une origine différente", async () => {
+  await assert.rejects(() => assertLocalRequest(new Request("http://evil.test/api", { headers: { host: "evil.test" } })), DomainError);
+  await assert.rejects(() => assertLocalRequest(new Request("http://localhost:3000/api", { headers: { host: "localhost:3000", origin: "https://evil.test", "content-type": "application/json" } }), true), /Origine/);
+  await assert.doesNotReject(() => assertLocalRequest(new Request("http://127.0.0.1:3000/api", { headers: { host: "127.0.0.1:3000", origin: "http://127.0.0.1:3000", "content-type": "application/json" } }), true));
 });
-test("le mode production refuse les données de démonstration sans activation locale explicite", () => {
+test("le mode production refuse les données de démonstration sans activation locale explicite", async () => {
   const previous = { nodeEnv: process.env.NODE_ENV, demo: process.env.CRM_LOCAL_DEMO };
   try {
     Object.assign(process.env, { NODE_ENV: "production", CRM_LOCAL_DEMO: "0" });
-    assert.throws(() => assertLocalRequest(new Request("http://127.0.0.1:3000/api", { headers: { host: "127.0.0.1:3000" } })), /ne peut pas être mise en service/);
+    await assert.rejects(() => assertLocalRequest(new Request("http://127.0.0.1:3000/api", { headers: { host: "127.0.0.1:3000" } })), /ne peut pas être mise en service/);
   } finally {
     if (previous.nodeEnv === undefined) Reflect.deleteProperty(process.env, "NODE_ENV");
     else Object.assign(process.env, { NODE_ENV: previous.nodeEnv });

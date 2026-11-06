@@ -20,7 +20,7 @@ export const chronopostChannelSchema = z.object({
 }).strict();
 export const chronopostChannelsSchema = z.object({ Amazon: chronopostChannelSchema, Cdiscount: chronopostChannelSchema,
   RETIF: chronopostChannelSchema, METRO: chronopostChannelSchema, "Site Jasmin": chronopostChannelSchema }).strict();
-export const chronopostSettingsInput = z.object({ enabled: z.boolean(), shipper: chronopostAddressDraftSchema,
+export const chronopostSettingsInput = z.object({ revision: z.number().int().min(0).optional(), enabled: z.boolean(), shipper: chronopostAddressDraftSchema,
   channels: chronopostChannelsSchema, password: z.string().min(1).max(512).optional(), clearPassword: z.boolean() }).strict();
 export const chronopostLabelInput = z.object({ shipmentId: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/), recipient: chronopostAddressSchema, confirmed: z.literal(true) }).strict();
 export type ChronopostAddress = z.infer<typeof chronopostAddressDraftSchema>;

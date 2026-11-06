@@ -24,9 +24,9 @@ export const imageRequest = z.object({ context: aiContextSchema, type: z.enum(["
   prompt: z.string().trim().max(3000), useGlobalRules: z.boolean(), referenceImage: imageAsset.shape.url.optional() });
 export type AiContext = z.infer<typeof aiContextSchema>;
 export type AiSuggestion = z.infer<typeof aiSuggestionSchema>;
-export type AiStatus = { enabled: boolean; keyPresent: boolean; textReady: boolean; imageReady: boolean; textModel: string; imageModel: string; imageRules: string };
+export type AiStatus = { revision?: number; enabled: boolean; keyPresent: boolean; textReady: boolean; imageReady: boolean; textModel: string; imageModel: string; imageRules: string };
 const modelId = z.string().trim().min(3).max(160).regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*\/[a-zA-Z0-9][a-zA-Z0-9._:/-]*$/);
 export const aiSettingsInput = z.object({
-  enabled: z.boolean(), apiKey: z.string().trim().min(10).max(512).regex(/^[A-Za-z0-9._-]+$/).optional(),
+  revision: z.number().int().min(0).optional(), enabled: z.boolean(), apiKey: z.string().trim().min(10).max(512).regex(/^[A-Za-z0-9._-]+$/).optional(),
   clearKey: z.boolean(), textModel: modelId, imageModel: modelId, imageRules: z.string().trim().max(3000)
 });

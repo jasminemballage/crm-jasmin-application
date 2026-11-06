@@ -9,7 +9,7 @@ const bodySchema = z.object({ revision: z.number().int().min(0), action: actionS
 const MAX_BODY_BYTES = 1_048_576;
 export async function POST(request: Request) {
   try {
-    assertLocalRequest(request, true);
+    await assertLocalRequest(request, true);
     if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw new DomainError("Requête trop volumineuse (1 Mo maximum).", 413);
     const reader = request.body?.getReader();
     if (!reader) throw new DomainError("Requête vide.", 400);

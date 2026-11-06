@@ -5,14 +5,17 @@ import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { z } from "zod";
 import { atomicWriteFile, renameWithRetry } from "./atomic-file";
 import { DomainError } from "./domain";
+import type { ChronopostStore } from "./chronopost-store";
+import { isSupabaseMode } from "./supabase/config";
 import type { Order, Shipment, State } from "./model";
 import { chronopostAddressSchema, chronopostLabelInput, chronopostDiagnosticSchema, type ChronopostDiagnostic, type ChronopostAddress, type ChronopostSettings, type ChronopostLabelStatus } from "./chronopost-contract";
 
 export const CHRONOPOST_ENDPOINT = "https://ws.chronopost.fr/shipping-cxf/ShippingServiceWS";
 const uncertainMessage = "Issue incertaine : Chronopost peut avoir créé l’étiquette. Vérifiez l’envoi dans votre espace Chronopost ou auprès de son support avant toute autre création. Le CRM bloque la régénération pour éviter une double étiquette.";
-const recordSchema = z.object({ shipmentId: z.string(), status: z.enum(["pending", "uncertain", "rejected", "created"]), createdAt: z.iso.datetime(),
+export const chronopostRecordSchema = z.object({ shipmentId: z.string(), status: z.enum(["pending", "uncertain", "rejected", "created"]), createdAt: z.iso.datetime(),
   trackingNumber: z.string().optional(), message: z.string().optional(), fingerprint: z.string(), diagnostic: chronopostDiagnosticSchema.optional() });
-type Record = z.infer<typeof recordSchema>;
+export type ChronopostRecord = z.infer<typeof chronopostRecordSchema>;
+type Record = ChronopostRecord;
 class CarrierRejected extends DomainError {}
 class CarrierFailure extends Error {
   constructor(readonly code: ChronopostDiagnostic["code"]) { super(code); }
@@ -41,7 +44,7 @@ function files(shipmentId: string, root: string) {
 }
 async function loadRecord(shipmentId: string, root: string): Promise<Record | null> {
   try {
-    const record = recordSchema.parse(JSON.parse(await readFile(files(shipmentId, root).record, "utf8")));
+    const record = chronopostRecordSchema.parse(JSON.parse(await readFile(files(shipmentId, root).record, "utf8")));
     if (record.shipmentId !== shipmentId || (record.status === "created" && !record.trackingNumber)) throw new Error("Incoherent label");
     return record;
   } catch (error) {
@@ -55,15 +58,17 @@ function publicLabel(record: Record): ChronopostLabelStatus {
     ...(record.message ? { message: record.message } : {}),
     ...(record.diagnostic ? { diagnostic: record.diagnostic } : {}) };
 }
-export async function readChronopostLabel(shipmentId: string, root = chronopostRoot()): Promise<ChronopostLabelStatus> {
-  const record = await loadRecord(shipmentId, root);
+export async function readChronopostLabel(shipmentId: string, root?: string): Promise<ChronopostLabelStatus> {
+  const store = root === undefined ? await defaultCloudStore() : undefined;
+  const record = store ? await store.read(shipmentId) : await loadRecord(shipmentId, root ?? chronopostRoot());
   return record ? publicLabel(record) : { shipmentId, status: "none" };
 }
-export async function readChronopostPdf(shipmentId: string, root = chronopostRoot()) {
-  const record = await loadRecord(shipmentId, root);
+export async function readChronopostPdf(shipmentId: string, root?: string) {
+  const store = root === undefined ? await defaultCloudStore() : undefined;
+  const record = store ? await store.read(shipmentId) : await loadRecord(shipmentId, root ?? chronopostRoot());
   if (record?.status !== "created") throw new DomainError("Aucune étiquette PDF disponible pour ce colis.", 404);
-  try { const pdf = await readFile(files(shipmentId, root).pdf); validatePdf(pdf); return pdf; }
-  catch { throw new DomainError("Le PDF local est indisponible. Récupérez l’étiquette existante auprès de Chronopost ; ne créez pas un nouvel envoi.", 503); }
+  try { const pdf = store ? await store.readPdf(shipmentId) : await readFile(files(shipmentId, root ?? chronopostRoot()).pdf); validatePdf(pdf); return pdf; }
+  catch { throw new DomainError("Le PDF est indisponible. Récupérez l’étiquette existante auprès de Chronopost ; ne créez pas un nouvel envoi.", 503); }
 }
 const escapeXml = (value: string | number) => String(value).replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]!);
 const element = (name: string, value: string | number) => {
@@ -133,21 +138,24 @@ async function responseText(response: Response): Promise<{ bytes: Buffer; trunca
 }
 
 export async function createChronopostLabel(input: unknown, state: State, config: ChronopostSettings,
-  options: { root?: string; requestFetch?: typeof fetch; signal?: AbortSignal } = {}): Promise<ChronopostLabelStatus> {
+  options: { root?: string; requestFetch?: typeof fetch; signal?: AbortSignal; store?: ChronopostStore } = {}): Promise<ChronopostLabelStatus> {
   const data = chronopostLabelInput.parse(input); const root = options.root ?? chronopostRoot();
+  const store = options.store ?? (options.root === undefined ? await defaultCloudStore() : undefined);
+  const read = () => store ? store.read(data.shipmentId) : loadRecord(data.shipmentId, root);
+  const checkPdf = async () => { if (store) validatePdf(await store.readPdf(data.shipmentId)); else await readChronopostPdf(data.shipmentId, root); };
   const shipment = state.shipments.find(s => s.id === data.shipmentId);
   if (!shipment) throw new DomainError("Colis introuvable.", 404);
   const order = state.orders.find(o => o.id === shipment.orderId);
   if (!order) throw new DomainError("Commande du colis introuvable.", 404);
-  const cached = await loadRecord(shipment.id, root);
-  if (cached?.status === "created") { await readChronopostPdf(shipment.id, root); return { ...publicLabel(cached), reused: true }; }
-  const paths = files(shipment.id, root); await mkdir(root, { recursive: true });
+  const cached = await read();
+  if (cached?.status === "created") { await checkPdf(); return { ...publicLabel(cached), reused: true }; }
+  const paths = files(shipment.id, root); if (!store) await mkdir(root, { recursive: true });
   let lock;
-  try { lock = await open(paths.lock, "wx", 0o600); }
+  try { if (!store) lock = await open(paths.lock, "wx", 0o600); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new DomainError("Une tentative Chronopost est déjà en cours ou a été interrompue. Vérifiez son résultat avant de recommencer.", 409); throw error; }
   try {
-    const existing = await loadRecord(shipment.id, root);
-    if (existing?.status === "created") { await readChronopostPdf(shipment.id, root); return { ...publicLabel(existing), reused: true }; }
+    const existing = await read();
+    if (existing?.status === "created") { await checkPdf(); return { ...publicLabel(existing), reused: true }; }
     if (existing && ["pending", "uncertain"].includes(existing.status)) throw new DomainError(uncertainMessage, 409);
     if (shipment.status !== "prepared") throw new DomainError("La création exige un colis préparé et non remis au transporteur.", 409);
     if (["cancelled", "shipped"].includes(order.status)) throw new DomainError("La commande de ce colis est close.", 409);
@@ -161,7 +169,9 @@ export async function createChronopostLabel(input: unknown, state: State, config
     const record: Record = { shipmentId: shipment.id, status: "pending", createdAt: new Date().toISOString(), fingerprint, message: uncertainMessage };
     options.signal?.throwIfAborted();
     // This durable marker MUST exist before the carrier can create anything. A crash blocks retries.
-    await atomicWriteFile(paths.record, JSON.stringify(record), 0o600);
+    const attemptId = randomUUID();
+    if (store) { if (!await store.claim(record, attemptId, state.revision)) throw new DomainError(uncertainMessage, 409); }
+    else await atomicWriteFile(paths.record, JSON.stringify(record), 0o600);
     let stage: ChronopostDiagnostic["stage"] = "request";
     let persistCode: ChronopostDiagnostic["code"] = "RESPONSE_PERSIST_FAILED";
     let httpStatus: number | undefined;
@@ -173,7 +183,8 @@ export async function createChronopostLabel(input: unknown, state: State, config
       const raw = await responseText(response);
       // Keep only the bounded carrier response, never the authenticated SOAP request.
       stage = "persist";
-      await saveRawResponse(paths.response, raw.bytes);
+      if (store) await store.saveResponse(shipment.id, attemptId, raw.bytes);
+      else await saveRawResponse(paths.response, raw.bytes);
       stage = "response";
       if (raw.truncated) throw new CarrierFailure("RESPONSE_TOO_LARGE");
       if (raw.readFailed) throw new CarrierFailure("RESPONSE_READ_FAILED");
@@ -183,10 +194,12 @@ export async function createChronopostLabel(input: unknown, state: State, config
       const result = parseChronopostResponse(raw.bytes.toString("utf8"));
       stage = "persist"; persistCode = "PDF_PERSIST_FAILED";
       const temp = `${paths.pdf}.tmp`;
-      try { await writeFile(temp, result.pdf, { mode: 0o600 }); await rename(temp, paths.pdf); } finally { await unlink(temp).catch(() => {}); }
+      if (store) await store.savePdf(shipment.id, attemptId, result.pdf);
+      else try { await writeFile(temp, result.pdf, { mode: 0o600 }); await rename(temp, paths.pdf); } finally { await unlink(temp).catch(() => {}); }
       const created: Record = { ...record, status: "created", trackingNumber: result.trackingNumber, message: undefined };
       persistCode = "RECORD_PERSIST_FAILED";
-      await atomicWriteFile(paths.record, JSON.stringify(created), 0o600);
+      if (store) await store.finish(created, attemptId);
+      else await atomicWriteFile(paths.record, JSON.stringify(created), 0o600);
       return { ...publicLabel(created), reused: false };
     } catch (error) {
       const rejected = error instanceof CarrierRejected;
@@ -194,8 +207,14 @@ export async function createChronopostLabel(input: unknown, state: State, config
       const code = rejected ? "CARRIER_REJECTED" : error instanceof CarrierFailure ? error.code : stage === "request" ? networkCode(error) : stage === "persist" ? persistCode : "UNKNOWN_FAILURE";
       const diagnostic: ChronopostDiagnostic = { stage, code, ...(httpStatus ? { httpStatus } : {}) };
       // Even if this final write fails, the earlier pending marker still forbids a duplicate.
-      await atomicWriteFile(paths.record, JSON.stringify({ ...record, status: rejected ? "rejected" : "uncertain", message, diagnostic }), 0o600).catch(() => {});
+      const failed: Record = { ...record, status: rejected ? "rejected" : "uncertain", message, diagnostic };
+      await (store ? store.finish(failed, attemptId) : atomicWriteFile(paths.record, JSON.stringify(failed), 0o600)).catch(() => {});
       throw rejected ? error : new DomainError(message, 409);
     }
-  } finally { await lock.close(); await unlink(paths.lock).catch(() => {}); }
+  } finally { if (lock) { await lock.close(); await unlink(paths.lock).catch(() => {}); } }
+}
+
+async function defaultCloudStore(): Promise<ChronopostStore | undefined> {
+  if (!isSupabaseMode()) return undefined;
+  return (await import("./chronopost-cloud")).cloudChronopostStore;
 }

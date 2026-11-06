@@ -11,7 +11,7 @@ function cell(value: unknown) {
 }
 export async function GET(request: Request) {
   try {
-    assertLocalRequest(request);
+    await assertLocalRequest(request);
     const state = await demoRepository.read();
     const kind = new URL(request.url).searchParams.get("kind");
     if (kind === "backup") return new Response(JSON.stringify(state, null, 2), { headers: {
