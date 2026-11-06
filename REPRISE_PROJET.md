@@ -11,9 +11,16 @@ Point de reprise mis à jour le **6 novembre 2026**. Lire ce fichier puis [le bi
 - Catalogue, stock, brouillons, imports/exports, commandes multicanales et détail destinataire, préparation de colis et intégration Chronopost sont présents. Les dernières créations du catalogue sont affichées en premier.
 - OpenRouter propose les textes et faits sourcés, avec aperçu et choix des champs. L’indicateur d’attente est animé. Les images de fiches publiques HTTPS sont lues directement, y compris les galeries à chargement différé et les images sur CDN.
 - Dernier correctif applicatif : `7047ca5`, publié et déployé sur Vercel. La fiche Duncan K/Loom restitue quatre photos en 800 × 800. Contrôle visuel local réussi avec réponses IA simulées, sans appel payant ni enregistrement de produit.
-- Derniers contrôles : 151 tests automatisés, TypeScript, compilation de production et revue indépendante réussis.
+- Contrôles du correctif `7047ca5` : 151 tests automatisés, TypeScript, compilation de production et revue indépendante réussis.
 
 Les 13 produits, 8 commandes et la révision 3 du bilan d’import sont un instantané du contrôle, pas des compteurs à rétablir. Relire l’état actuel via l’application : les utilisateurs peuvent l’avoir modifié depuis.
+
+## Reprise locale sous Windows du 6 novembre 2026
+
+- La copie locale a été synchronisée sur `main` au commit `9edc38e`. L’ancienne branche locale `codex/publication-initiale` a été conservée. L’installation verrouillée a réussi avec Node.js 24 et pnpm 11.25.0. Après un arrêt, relancer avec `pnpm dev` et ouvrir [la page de connexion locale](http://127.0.0.1:3000/connexion).
+- Les cinq variables Supabase ont été complétées dans `.env.local`. Supabase Auth renvoyait HTTP 401 avec la première valeur de `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Après remplacement par la clé publique existante du projet Jasmin, Next.js a rechargé le fichier et Supabase Auth a répondu HTTP 200.
+- La page locale de connexion répond. Le contrôle en lecture seule a confirmé l’accès à la base avec la clé serveur et le déchiffrement des réglages OpenRouter et Chronopost avec la clé existante. Pour valider une session complète sur ce poste, se connecter avec le compte CRM habituel et ouvrir le catalogue.
+- Sur Windows, 147 tests sur 151 passent. Trois échecs portent sur le mode de fichier POSIX `0600` attendu par les tests Chronopost. Le quatrième reçoit `EPERM` lors de la création d’un lien symbolique par un test d’import.
 
 ## Installer sur un autre ordinateur
 
