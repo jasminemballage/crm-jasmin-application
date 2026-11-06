@@ -2,11 +2,11 @@
 
 Code source : dépôt public [jasminemballage/crm-jasmin-application](https://github.com/jasminemballage/crm-jasmin-application).
 
-Le mode partagé Supabase est disponible dans le code : connexion des membres autorisés, données versionnées dans PostgreSQL, documents privés et réglages chiffrés communs au local et à Vercel. Son activation nécessite le provisionnement du projet et l’import des données locales. Suivre [le guide de branchement Supabase](docs/SUPABASE.md). Le code utilise les migrations `supabase/migrations` ; le schéma Prisma historique n’est pas utilisé à l’exécution.
+**État au 6 novembre 2026 : local et Vercel partagent la même base Supabase, avec connexion des membres, documents privés et réglages chiffrés.** Pour récupérer le code et reprendre sur un autre ordinateur, commencer par [REPRISE_PROJET.md](REPRISE_PROJET.md), puis [le bilan actuel](docs/REPRISE_2026-11-06.md). Les migrations et l’import sont déjà terminés : ne pas les rejouer sur la base existante. Le code utilise `supabase/migrations` ; le schéma Prisma historique n’est pas utilisé à l’exécution.
 
 Correctif du 4 novembre : budget de génération adapté aux modèles avec raisonnement, et état de préparation animé dans la fiche produit. Voir le [diagnostic et les vérifications](docs/CORRECTIF_2026-11-04_ENRICHISSEMENT.md).
 
-Cette étape fournit une application utilisable sur cet ordinateur pour valider le parcours métier avec Jasmin. **Toutes les commandes initiales sont fictives. Les marketplaces ne sont pas connectées. Le connecteur Chronopost est configuré localement et une première génération de PDF sur le contrat utilisateur a été confirmée.**
+L’application fonctionne en local et sur [Vercel](https://crm-jasmin-application.vercel.app) pour valider le parcours métier avec Jasmin. **Les commandes initiales sont fictives et les marketplaces ne sont pas connectées. Les réglages Chronopost sont partagés ; une première génération de PDF sur le contrat utilisateur a été confirmée et son PDF a été récupéré dans les deux environnements.**
 
 Le dépôt de code exclut les clés et configurations locales, les données enregistrées, les médias locaux, les sauvegardes, ainsi que les PDF/captures de référence et preuves d’essais. Ces éléments restent dans la copie locale du projet ; certains liens documentaires vers ces pièces nécessitent cette copie.
 
@@ -18,11 +18,11 @@ Un brouillon peut être conservé sans titre, poids ou conditionnement connus, a
 
 Les photos importées (PNG/JPEG/WebP, 4 Mo par image, 8 images par produit) sont conservées dans `.local/media/` en mode local et dans Storage privé en mode Supabase ; le JSON ne contient que leurs métadonnées. Le premier visuel est l’image principale. Les images IA restent des propositions à vérifier avant ajout et activation. La copie JSON seule ne contient pas les fichiers image : conserver aussi le dossier des médias, ou l’archive complète de fin de séance.
 
-Pour l’IA, ouvrir **Paramètres → Enrichissement IA · OpenRouter** et saisir la clé dans le champ prévu, jamais dans la conversation. La clé est enregistrée dans `.env.local`, côté serveur et ignorée par Git ; elle n’est pas renvoyée par l’API ni incluse dans les sauvegardes. Le fichier local n’est pas chiffré. Les modèles et les règles globales d’image sont modifiables. L’enregistrement de la configuration ne lance aucun appel payant ; les boutons de la fiche utilisent ensuite les crédits du compte OpenRouter.
+Pour l’IA, ouvrir **Paramètres → Enrichissement IA · OpenRouter** et saisir la clé dans le champ prévu, jamais dans la conversation. En mode Supabase, la clé est chiffrée dans les réglages partagés avec la clé serveur `CRM_SETTINGS_ENCRYPTION_KEY`. En mode fichier local explicite, elle reste dans `.env.local`, ignoré par Git et non chiffré par l’application. L’API de configuration ne renvoie jamais la clé. Les modèles et les règles globales d’image sont modifiables. L’enregistrement de la configuration ne lance aucun appel payant ; les boutons de la fiche utilisent ensuite les crédits du compte OpenRouter.
 
 L’enrichissement propose les textes et, en mode web, des faits accompagnés de sources à consulter. Les faits nouveaux sans source sont écartés, ainsi que les EAN dont la clé de contrôle est invalide. L’utilisateur choisit les champs à appliquer ; les propositions ne changent pas le stock, la TVA ou les publications. Une modification du contexte invalide une proposition précédente. La génération d’une image peut utiliser une photo locale comme référence ; elle est alors transmise à OpenRouter lors de la requête.
 
-Depuis la version 0.3.3, les fiches de jasminemballage.fr bénéficient aussi d’une lecture directe des métadonnées du produit : catégorie adaptée, marque explicitement déclarée et photos originales. Le vendeur n’est pas utilisé comme marque. Une marque absente reste vide avec l’indication « À confirmer ». Les photos proposées affichent un aperçu avant ajout à la galerie. Sur le sac poulet de Jasmin, le test réel a confirmé **Sacs**, aucune marque et une photo originale. Voir le [bilan catégorie, marque et images](docs/ENRICHISSEMENT_2026-11-02_CATEGORIE_MARQUE_IMAGES.md).
+Depuis le correctif du 6 novembre, les fiches publiques HTTPS bénéficient d’une lecture directe des métadonnées et galeries du produit : marque explicitement déclarée et photos originales, y compris les images différées et CDN. La fiche Duncan K/Loom a été vérifiée avec quatre photos de 800 × 800. Les fiches Jasmin conservent aussi leur catégorie adaptée. Le vendeur n’est pas utilisé comme marque. Une marque absente reste vide avec l’indication « À confirmer ». Les photos proposées affichent un aperçu avant ajout à la galerie. Sur le sac poulet de Jasmin, le test réel a confirmé **Sacs**, aucune marque et une photo originale. Voir le [bilan catégorie, marque et images](docs/ENRICHISSEMENT_2026-11-02_CATEGORIE_MARQUE_IMAGES.md).
 
 Voir [la configuration et les limites de l’IA](docs/IA_ET_FICHE_PRODUIT.md). Les textes et images ont été vérifiés réellement le 2 novembre. Le correctif 0.3.2 a ensuite validé l’enrichissement depuis le lien public du sac à poulet fourni par Jasmin, en séparant consultation web et construction contrôlée de la fiche. Les propositions restent à vérifier avant application. Voir le [bilan du correctif](docs/CORRECTIF_2026-11-02_JSON_ENRICHISSEMENT_WEB.md). La recherche sans lien exact et la génération avec photo de référence restent à essayer.
 
@@ -30,13 +30,15 @@ Voir [la configuration et les limites de l’IA](docs/IA_ET_FICHE_PRODUIT.md). L
 
 La page Commandes reprend les indicateurs, filtres par canal/statut, recherche, dates, montants et pagination. Une commande ouvre un détail avec client, destinataire, adresse, coordonnées, créneaux d’expédition/livraison, articles et montants. Les totaux HT et TTC restent distincts. Incidents, livraisons et remboursements restent indisponibles tant qu’aucun connecteur ne transmet ces informations.
 
-Dans **Paramètres → Expéditions · Chronopost**, saisir le mot de passe Web Services, les coordonnées de l’expéditeur, puis le compte, sous-compte, produit et service de chaque canal utilisé. Un seul canal complet suffit pour commencer. Le mot de passe est commun aux canaux ; des contrats nécessitant des mots de passe différents demandent une extension. Les accès sont enregistrés côté serveur dans `.env.local`, ignoré par Git. Aucun appel Chronopost n’a lieu à l’enregistrement.
+Dans **Paramètres → Expéditions · Chronopost**, saisir le mot de passe Web Services, les coordonnées de l’expéditeur, puis le compte, sous-compte, produit et service de chaque canal utilisé. Un seul canal complet suffit pour commencer. Le mot de passe est commun aux canaux ; des contrats nécessitant des mots de passe différents demandent une extension. Les accès sont chiffrés côté serveur dans Supabase en mode partagé, ou dans `.env.local` en mode fichier local explicite. Aucun appel Chronopost n’a lieu à l’enregistrement.
 
 Depuis une commande, préparer un colis, ouvrir **Étiquette Chronopost**, vérifier le destinataire, puis confirmer la création. Le premier parcours couvre la France métropolitaine à domicile, un PDF par colis. La création n’effectue aucune sortie de stock et ne confirme pas l’expédition auprès de la marketplace. En cas de réponse interrompue, la régénération est bloquée jusqu’à vérification ; rouvrir une étiquette réussie réutilise son PDF.
 
-Les PDF et historiques restent dans `.local/chronopost/`, hors dépôt et hors export JSON des commandes. Sauvegarder ce dossier avec les données locales pour conserver les documents et la protection contre les doublons. Voir [fonctionnement, contrôles et limites](docs/COMMANDES_CHRONOPOST_2026-11-04.md).
+En mode partagé, les PDF sont dans Storage privé et les historiques dans Supabase. En mode fichier local explicite, ils restent dans `.local/chronopost/`, hors dépôt et hors export JSON des commandes : sauvegarder ce dossier avec les données locales pour conserver les documents et la protection contre les doublons. Voir [fonctionnement, contrôles et limites](docs/COMMANDES_CHRONOPOST_2026-11-04.md).
 
 ## Ouvrir le CRM
+
+Sur un nouvel ordinateur, suivre d’abord [l’installation et la configuration partagée](REPRISE_PROJET.md). Le démarrage commun est `pnpm dev`. Le lanceur ci-dessous est destiné à Windows, après installation des dépendances et création du fichier `.env.local`.
 
 1. Double-cliquer sur **DEMARRER_CRM.cmd** dans ce dossier.
 2. Laisser la fenêtre ouverte et attendre le message `Ready`.
@@ -57,7 +59,7 @@ Si le port 3000 est déjà occupé, fermer l’autre lancement du CRM. Les dépe
 
 La fiche A4 est un document de préparation interne, **non valable pour le transport**. La génération d’une étiquette de transport Chronopost est une action distincte dans le détail de commande ; aucune facture n’est générée.
 
-Les filtres, recherches, imports avec aperçu, exports CSV et la copie complète sont disponibles. Les modifications sont conservées dans `.local/demo-state.json`, ignoré par Git. Un fichier illisible est conservé et bloque les modifications, sans retour silencieux au jeu initial. La réinitialisation volontaire se trouve dans **Paramètres** et demande une confirmation. L’export complet permet de conserver ses essais ; sa restauration n’a pas encore d’écran.
+Les filtres, recherches, imports avec aperçu, exports CSV et la copie complète sont disponibles. En mode partagé, les modifications sont conservées dans Supabase et visibles en local comme sur Vercel ; la réinitialisation est désactivée. En mode fichier local explicite, elles sont dans `.local/demo-state.json`, ignoré par Git : un fichier illisible est conservé et bloque les modifications, sans retour silencieux au jeu initial. La réinitialisation de ce mode se trouve dans **Paramètres** avec confirmation. L’export complet permet de conserver ses essais ; sa restauration n’a pas encore d’écran.
 
 ## Importer un catalogue ou un inventaire
 
@@ -84,9 +86,9 @@ Le [parcours d’essai guidé](docs/ESSAI_GUIDE.md) utilise uniquement les modè
 - Configuration Chronopost par canal et génération PDF avec protection contre les doubles créations ; authentification du contrat et première génération de PDF confirmées, suivi et remise physique encore à vérifier.
 - Marketplaces : **non connectées** ; les données manquantes restent signalées.
 
-Le stockage de démonstration utilise un fichier et un verrou dans **un seul processus local**. Il n’est pas une base partagée ni un système de sauvegarde. Les routes refusent les hôtes distants et les écritures depuis une origine différente. Le mode production est bloqué par défaut ; `CRM_LOCAL_DEMO=1` ne sert qu’aux essais sur localhost et ne rend pas ce logiciel exploitable sur un serveur.
+Le mode fichier local explicite (`CRM_STORAGE_BACKEND=local`), distinct du mode Supabase utilisé par Jasmin, utilise un fichier et un verrou dans **un seul processus local**. Il n’est pas une base partagée ni un système de sauvegarde. Les routes refusent les hôtes distants et les écritures depuis une origine différente. Le mode production est bloqué par défaut ; `CRM_LOCAL_DEMO=1` ne sert qu’aux essais sur localhost et ne rend pas ce logiciel exploitable sur un serveur.
 
-**Les commandes initiales restent des exemples.** Les accès OpenRouter et Chronopost se renseignent uniquement dans leurs formulaires serveur de Paramètres. Une création Chronopost explicitement confirmée peut émettre une étiquette réelle facturable ; ne pas lancer cet envoi sur un destinataire fictif. Les identifiants vendeurs ne sont pas encore pris en charge. Les fichiers locaux ne sont pas chiffrés par l’application. Les comptes nominatifs, droits et double authentification ne sont pas encore implémentés.
+**Les commandes initiales restent des exemples.** Les accès OpenRouter et Chronopost se renseignent uniquement dans leurs formulaires serveur de Paramètres. Une création Chronopost explicitement confirmée peut émettre une étiquette réelle facturable ; ne pas lancer cet envoi sur un destinataire fictif. Les identifiants vendeurs ne sont pas encore pris en charge. Les fichiers locaux ne sont pas chiffrés par l’application. Les comptes nominatifs et le contrôle des membres autorisés sont implémentés en mode Supabase ; la double authentification reste à faire.
 
 ## Développement et contrôles
 
@@ -105,12 +107,10 @@ Les contrôles HTTP de `tests/http-smoke.mjs` nécessitent un serveur de test is
 
 Pour les tests navigateur, démarrer le serveur local puis installer le navigateur avec `pnpm exec playwright install chromium`, ou fournir `CRM_UI_CHROME_PATH` vers un Chrome installé. `CRM_UI_BASE_URL` permet de changer le port. Toutes les routes `/api/demo/**` sont interceptées ; ces tests ne modifient pas les données du poste et ne contactent pas le transporteur.
 
-`prisma/schema.prisma` est le modèle initial de la prochaine étape. Il n’est pas encore relié à l’application. Aucun serveur PostgreSQL, migration, client généré ni transaction PostgreSQL n’a été exécuté. Il faudra notamment ajouter les contraintes SQL de quantités, les transactions et verrous de réservation, les tables d’authentification et le stockage chiffré des données destinataires à durée limitée avant activation réelle.
+`prisma/schema.prisma` est un modèle historique non utilisé à l’exécution. La base active utilise les migrations SQL de `supabase/migrations`, un état métier JSONB avec contrôle transactionnel de révision, Supabase Auth, des membres autorisés et Storage privé. Voir [le bilan de validation et les limites](docs/REPRISE_2026-11-06.md).
 
 ## Prochaine étape du projet
 
-À la demande de Tim en fin de séance du 4 novembre, la prochaine étape est le branchement de toutes les données sur Supabase pour partager les modifications entre le poste local et Vercel. Cette intégration est reportée à la prochaine séance ; aucune base n’a encore été créée. Voir le [bilan de reprise](docs/REPRISE_2026-11-04.md).
-
-Valider les écrans et les conditionnements avec Jasmin, puis intégrer PostgreSQL, les deux comptes avec double authentification et les procédures de sécurité. Ensuite seulement : VPS, sauvegardes testées, autorisation Amazon, pilote commandes/stock/Chronopost, puis les autres canaux.
+Le branchement Supabase demandé le 4 novembre est terminé et vérifié le 6 novembre. Les suites à cadrer sont les connexions marketplaces, les onglets produit encore à venir, la double authentification, les sauvegardes/restaurations testées et la validation des parcours métier. Lire [le point de reprise actuel](REPRISE_PROJET.md) avant de reprendre ; les bilans datés antérieurs sont historiques.
 
 Le plan détaillé est conservé dans `PLAN_CRM_JASMIN.md`, l’état des accès dans `AUDIT_CONNEXIONS_CRM_JASMIN.md` et les écarts du questionnaire Amazon dans `docs/AMAZON_QUESTIONNAIRE_SECURITE.md`. Cette démonstration ne constitue pas une preuve de conformité à ces exigences.

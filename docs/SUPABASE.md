@@ -1,6 +1,10 @@
-# Activer les données partagées
+# Configurer les données partagées
 
-Les vérifications locales ne prouvent pas une connexion réelle à Supabase ou un partage local/Vercel. L’import réel doit être exécuté séparément, après provisionnement.
+**Projet Jasmin actuel — 6 novembre 2026 :** migrations, import, comptes et connexion locale/Vercel sont terminés et vérifiés. Pour installer un autre ordinateur, suivre [Reprendre le CRM Jasmin](../REPRISE_PROJET.md) : reprendre les cinq variables existantes et lancer le code. **Ne pas rejouer la procédure initiale ci-dessous sur la base active.** Voir [le bilan de validation](REPRISE_2026-11-06.md).
+
+## Procédure initiale pour une nouvelle base vide
+
+Les étapes suivantes sont conservées comme procédure de provisionnement, pas comme tâches restantes pour Jasmin. Les contrôles locaux ne prouvent pas une connexion réelle : toute nouvelle base doit être vérifiée après son propre import.
 
 1. Dans le projet Supabase cible, Sofiane ouvre **SQL Editor**, colle le contenu de [`supabase/setup.sql`](../supabase/setup.sql) et exécute le script une seule fois. Celui-ci regroupe les migrations `supabase/migrations` dans une transaction : cœur CRM/Storage puis Chronopost. Conserver le bucket `crm-private` privé et les RLS actives. Les tables métier ne sont pas accessibles aux clés publiques.
 2. Provisionner manuellement les comptes email/mot de passe dans Supabase Auth, sans invitation ni email automatique. Désactiver l’inscription publique. Ajouter leurs UUID Auth dans `crm_members(user_id, enabled)` ; aucun UUID ne doit être inventé.
@@ -29,7 +33,7 @@ Après application, vérifier connexion d’un membre autorisé, refus d’un no
 
 ## Points de contrôle
 
-Les utilisateurs doivent être créés dans **Authentication → Users → Add user** (email/mot de passe, pas d’invitation), puis autorisés dans `crm_members` avec leurs vrais UUID. L’interface de connexion ne crée pas de compte. Les adresses des comptes de Tim et Sofiane restent à confirmer avant provisionnement.
+Les utilisateurs doivent être créés dans **Authentication → Users → Add user** (email/mot de passe, pas d’invitation), puis autorisés dans `crm_members` avec leurs vrais UUID. L’interface de connexion ne crée pas de compte. Les deux comptes de Jasmin sont déjà créés et autorisés ; leurs mots de passe sont transmis séparément, jamais via GitHub.
 
 Ne pas activer le mode partagé tant que l’import et au moins un membre ne sont pas prêts. Les aperçus Vercel ne doivent pas recevoir les clés de production par défaut. Activer les variables sur Production et sur le poste local choisi, puis vérifier avant d’étendre aux autres environnements.
 
