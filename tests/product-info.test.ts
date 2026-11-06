@@ -122,7 +122,7 @@ test("le connecteur web sépare la recherche bornée du formatage structuré san
   const fake = (async (url, options) => { endpoint = String(url); payloads.push(JSON.parse(String(options?.body)));
     assert.equal(new Headers(options?.headers).get("authorization"), `Bearer ${config.apiKey}`);
     return Response.json({ choices: [{ message: { content: JSON.stringify(suggestion()) } }], usage: { cost: 0.001 } }); }) as typeof fetch;
-  const result = await enrichProduct(context(), "web", config, fake);
+  const result = await enrichProduct(context(), "web", config, fake, undefined, async () => null);
   assert.equal(endpoint, "https://openrouter.ai/api/v1/chat/completions"); assert.equal(payloads.length, 2);
   assert.equal(payloads[0].tools[0].type, "openrouter:web_fetch"); assert.equal(payloads[0].tools[0].parameters.max_uses, 1);
   assert.equal(payloads[1].tools, undefined); assert.equal(payloads[1].response_format.type, "json_schema");

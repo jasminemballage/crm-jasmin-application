@@ -1,18 +1,19 @@
 import { lookup } from "node:dns/promises";
 import { request } from "node:https";
 import { isIP } from "node:net";
+import { parse, type DefaultTreeAdapterMap } from "parse5";
 import { isPublicUrl } from "./product-info";
 
 type Category = "Gobelets" | "Barquettes" | "Sacs" | "Couverts" | "Accessoires";
-export type ProductSource = { url: string; title: string; category: Category | null; brand: string; imageUrls: string[] };
-const trustedHosts = new Set(["jasminemballage.fr", "www.jasminemballage.fr"]);
+export type ProductSource = { url: string; title: string; category: Category | null; brand: string; imageUrls: string[]; productIdentified?: boolean };
 
 export function trustedProductUrl(input: string): URL | null {
   try {
     const url = new URL(input);
-    if (!isPublicUrl(input) || !trustedHosts.has(url.hostname) || (url.port && url.port !== "443") ||
-        !/^\/product\/[\p{L}\p{N}_.+-]+\/?$/u.test(decodeURIComponent(url.pathname))) return null;
-    url.search = ""; url.hash = ""; return url;
+    if (input.length > 2048 || !isPublicUrl(input) || (url.port && url.port !== "443")) return null;
+    // Keep variant/product query parameters; only remove tracking and browser-only fragments.
+    for (const key of [...url.searchParams.keys()]) if (/^(utm_|gclid$|fbclid$)/i.test(key)) url.searchParams.delete(key);
+    url.hash = ""; return url;
   } catch { return null; }
 }
 export function isPublicAddress(address: string) {
@@ -36,7 +37,9 @@ async function resolvePublic(hostname: string, signal: AbortSignal) {
 }
 async function readTrustedPage(url: URL, signal: AbortSignal): Promise<{ html: string; url: string }> {
   for (let redirects = 0; redirects <= 2; redirects++) {
-    if (!trustedProductUrl(url.href)) throw new Error("Lien produit non autorisé.");
+    const checked = trustedProductUrl(url.href);
+    if (!checked) throw new Error("Lien produit non autorisé.");
+    url = checked;
     const address = await resolvePublic(url.hostname, signal);
     const response = await new Promise<{ html?: string; redirect?: string }>((resolve, reject) => {
       const req = request(url, { method: "GET", agent: false, family: address.family,
@@ -76,7 +79,71 @@ export function inferProductCategory(name: string): Category | null {
   if (/\b(accessoires?|serviettes?|pailles?)\b/.test(value)) return "Accessoires";
   return null;
 }
-function canonical(value: unknown, base: string) { try { const u = new URL(String(value), base); return `${u.origin}${u.pathname.replace(/\/$/, "")}`; } catch { return ""; } }
+function canonical(value: unknown, base: string) {
+  try {
+    const u = trustedProductUrl(new URL(String(value), base).href); if (!u) return "";
+    u.searchParams.sort();
+    return `${u.origin}${u.pathname.replace(/\/$/, "")}${u.search}`;
+  } catch { return ""; }
+}
+function sourceImageUrl(value: unknown, base: string): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const image = new URL(decode(value), base); image.hash = "";
+    if (image.href.length > 2048 || !isPublicUrl(image.href) || (image.port && image.port !== "443") ||
+        !/\.(png|jpe?g|webp)$/i.test(image.pathname) || /\b(logo|favicon|banner|payment|paiement)\b/i.test(decodeURIComponent(image.pathname))) return null;
+    return image.href;
+  } catch { return null; }
+}
+
+type HtmlNode = DefaultTreeAdapterMap["node"];
+type HtmlElement = DefaultTreeAdapterMap["element"];
+const attr = (node: HtmlElement, name: string) => node.attrs.find(a => a.name === name)?.value;
+// Nested scopes belong to another entity (recommendations, seller, offers), not this product.
+function elements(root: HtmlNode, ownScope = false): HtmlElement[] {
+  const found: HtmlElement[] = [];
+  const stack: HtmlNode[] = "childNodes" in root ? [...root.childNodes].reverse() : [];
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (!("tagName" in node) || ["script", "style", "template", "noscript"].includes(node.tagName)) continue;
+    found.push(node);
+    if (!ownScope || attr(node, "itemscope") === undefined) stack.push(...node.childNodes.slice().reverse());
+  }
+  return found;
+}
+function textContent(root: HtmlNode): string {
+  const stack = [root]; const parts: string[] = [];
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (node.nodeName === "#text" && "value" in node) parts.push(node.value);
+    else if ("childNodes" in node && !("tagName" in node && ["script", "style", "template"].includes(node.tagName))) stack.push(...node.childNodes.slice().reverse());
+  }
+  return parts.join(" ");
+}
+const propertyValue = (node: HtmlElement) => attr(node, "content") ?? attr(node, "href") ?? attr(node, "src") ?? textContent(node);
+const hasProperty = (node: HtmlElement, name: string) => (attr(node, "itemprop") ?? "").split(/\s+/).includes(name);
+function microdataProduct(html: string, url: string, title: string) {
+  const products = elements(parse(html)).filter(node => attr(node, "itemscope") !== undefined &&
+    (attr(node, "itemtype") ?? "").split(/\s+/).some(type => /^https?:\/\/schema\.org\/Product\/?$/i.test(type))).slice(0, 50)
+    .map(node => {
+      const properties = elements(node, true);
+      const value = (key: string) => { const property = properties.find(p => hasProperty(p, key)); return property ? propertyValue(property) : ""; };
+      return { properties, name: plain(value("name")), url: value("url") || attr(node, "itemid") || "" };
+    });
+  const product = products.find(p => p.url && canonical(p.url, url) === canonical(url, url)) ??
+    products.find(p => !p.url && p.name && p.name.toLowerCase() === title.toLowerCase()) ??
+    (products.length === 1 && !products[0].url ? products[0] : undefined);
+  if (!product) return null;
+  const brandNode = product.properties.find(p => hasProperty(p, "brand"));
+  const brandName = brandNode && attr(brandNode, "itemscope") !== undefined ? elements(brandNode, true).find(p => hasProperty(p, "name")) : brandNode;
+  const images = product.properties.filter(p => hasProperty(p, "image")).flatMap(node => {
+    const candidates = node.tagName === "img" ? [attr(node, "data-image-large-src"), attr(node, "data-zoom-image"), attr(node, "data-src"), attr(node, "src"), attr(node, "content")] :
+      attr(node, "itemscope") !== undefined ? elements(node, true).filter(p => hasProperty(p, "contentUrl") || hasProperty(p, "url")).map(propertyValue) : [propertyValue(node)];
+    const image = candidates.map(value => sourceImageUrl(value, url)).find(Boolean);
+    return image ? [image] : [];
+  });
+  return { name: product.name, brand: brandName ? plain(propertyValue(brandName), 120) : "", images };
+}
 export function parseProductSource(html: string, url: string): ProductSource {
   const metas = [...html.matchAll(/<meta\b[^>]*>/gi)].map(m => attributes(m[0]));
   const meta = (key: string) => metas.find(m => (m.property ?? m.name)?.toLowerCase() === key)?.content ?? "";
@@ -96,24 +163,26 @@ export function parseProductSource(html: string, url: string): ProductSource {
   const product = products.find(p => typeof p.url === "string" && canonical(p.url, url) === canonical(url, url)) ??
     products.find(p => !p.url && plain(p.name).toLowerCase() === title.toLowerCase()) ??
     (products.length === 1 && !products[0].url ? products[0] : undefined);
-  const brand = plain(typeof product?.brand === "object" && product.brand ? (product.brand as Record<string, unknown>).name : product?.brand, 120) || plain(meta("product:brand"), 120);
+  const microdata = microdataProduct(html, url, title);
+  const brand = plain(typeof product?.brand === "object" && product.brand ? (product.brand as Record<string, unknown>).name : product?.brand, 120) || microdata?.brand || plain(meta("product:brand"), 120);
   const declaredCategory = typeof product?.category === "string" ? product.category : "";
-  const candidates: unknown[] = [meta("og:image"), meta("og:image:secure_url"), ...[product?.image ?? []].flat()];
+  const candidates: unknown[] = [meta("og:image"), meta("og:image:secure_url"), ...[product?.image ?? []].flat(), ...microdata?.images ?? []];
   const imageUrls: string[] = [];
   for (const item of candidates) {
-    const value = typeof item === "string" ? item : item && typeof item === "object" ? (item as Record<string, unknown>).url : undefined;
-    if (typeof value !== "string" || !value) continue;
-    try {
-      const image = new URL(decode(value), url); image.hash = "";
-      if (isPublicUrl(image.href) && trustedHosts.has(image.hostname) && /\.(png|jpe?g|webp)$/i.test(image.pathname) &&
-          !/\b(logo|favicon|banner|payment|paiement)\b/i.test(decodeURIComponent(image.pathname)) && !imageUrls.includes(image.href)) imageUrls.push(image.href);
-    } catch { /* Ignore an invalid URL. */ }
+    const value = typeof item === "string" ? item : item && typeof item === "object" ? (item as Record<string, unknown>).contentUrl ?? (item as Record<string, unknown>).url : undefined;
+    const image = sourceImageUrl(value, url);
+    if (image && !imageUrls.includes(image)) imageUrls.push(image);
   }
-  return { url, title: title || plain(product?.name), brand, category: inferProductCategory(declaredCategory) ?? inferProductCategory(title || plain(product?.name)), imageUrls: imageUrls.slice(0, 8) };
+  const productTitle = title || plain(product?.name) || microdata?.name || "";
+  // The existing Jasmin catalogue predates Product markup; keep its known product-page format.
+  const legacyJasminProduct = /^https:\/\/(?:www\.)?jasminemballage\.fr\/product\/[^/?#]+\/?$/.test(url) && productTitle && imageUrls.length;
+  return { url, title: productTitle, brand, category: inferProductCategory(declaredCategory) ?? inferProductCategory(productTitle), imageUrls: imageUrls.slice(0, 8),
+    productIdentified: Boolean(product || microdata || meta("og:type").toLowerCase() === "product" || legacyJasminProduct) };
 }
 export async function inspectProductSource(input: string, parentSignal?: AbortSignal): Promise<ProductSource | null> {
   const url = trustedProductUrl(input); if (!url) return null;
   const signal = parentSignal ? AbortSignal.any([parentSignal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000);
   const page = await readTrustedPage(url, signal);
-  return parseProductSource(page.html, page.url);
+  const source = parseProductSource(page.html, page.url);
+  return source.productIdentified ? source : null;
 }

@@ -78,14 +78,14 @@ test("un résultat web entouré de Markdown devient une proposition validée ave
     assert.equal(payload.messages[0].content.endsWith(JSON.stringify(payload.response_format.json_schema.schema)), true);
     return Response.json({ choices: [{ finish_reason: "stop", message: { content: codeBlock(JSON.stringify(valid)) } }] });
   }) as typeof fetch;
-  const result = await enrichProduct(structuredClone(context), "web", config, mock);
+  const result = await enrichProduct(structuredClone(context), "web", config, mock, undefined, async () => null);
   assert.deepEqual(result.suggestion, valid); assert.equal(calls, 2);
 });
 
 test("un JSON lisible dont les rubriques sont incorrectes reste rejeté sans conversion hasardeuse ni nouvel appel", async () => {
   let calls = 0; const before = structuredClone(context);
   const mock = (async () => { calls++; return Response.json({ choices: [{ finish_reason: "stop", message: { content: codeBlock(JSON.stringify({ ...valid, sourceUrl: context.sourceUrl, attributes: ["papier"], uncertainties: { weightGrams: null } })) } }] }); }) as typeof fetch;
-  await assert.rejects(() => enrichProduct(context, "web", config, mock), /données invalides/);
+  await assert.rejects(() => enrichProduct(context, "web", config, mock, undefined, async () => null), /données invalides/);
   assert.equal(calls, 2); assert.deepEqual(context, before);
 });
 
@@ -99,10 +99,10 @@ test("le connecteur signale une réponse interrompue et ne la répare pas par un
 test("une consultation web tronquée s’arrête avant le formatage et une annulation empêche le second appel", async () => {
   let calls = 0;
   const truncated = (async () => { calls++; return Response.json({ choices: [{ finish_reason: "length", message: { content: "Une extraction incomplète" } }] }); }) as typeof fetch;
-  await assert.rejects(() => enrichProduct(context, "web", config, truncated), /interrompue/); assert.equal(calls, 1);
+  await assert.rejects(() => enrichProduct(context, "web", config, truncated, undefined, async () => null), /interrompue/); assert.equal(calls, 1);
   calls = 0; const controller = new AbortController();
   const cancelled = (async () => { calls++; controller.abort(); return Response.json({ choices: [{ finish_reason: "stop", message: { content: "Sac fictif" } }] }); }) as typeof fetch;
-  await assert.rejects(() => enrichProduct(context, "web", config, cancelled, controller.signal)); assert.equal(calls, 1);
+  await assert.rejects(() => enrichProduct(context, "web", config, cancelled, controller.signal, async () => null)); assert.equal(calls, 1);
 });
 
 test("un carton de 500 sacs ne devient pas 500 paquets et les zéros inconnus ne deviennent pas des faits", () => {

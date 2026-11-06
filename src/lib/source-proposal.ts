@@ -3,6 +3,7 @@ import { inferProductCategory, type ProductSource } from "./product-source";
 
 export function completeSourceProposal(input: AiSuggestion, context: AiContext, source: ProductSource | null): AiSuggestion {
   const result = structuredClone(input);
+  if (source?.productIdentified === false) source = null;
   const inferred = source?.category ?? ((result.category === "Accessoires" || !result.category) ? inferProductCategory(result.name || context.name) : null);
   if (inferred) result.category = inferred;
   if (!source) return result;
@@ -21,7 +22,7 @@ export function completeSourceProposal(input: AiSuggestion, context: AiContext, 
   }
   result.imageUrls = [...source.imageUrls];
   result.evidence = result.evidence.filter(e => e.field !== "imageUrls");
-  if (source.imageUrls.length) evidence("imageUrls", "Photo principale déclarée pour ce produit sur sa fiche ; logos et produits suggérés exclus.");
+  if (source.imageUrls.length) evidence("imageUrls", "Photos déclarées pour ce produit dans les métadonnées et la galerie de sa fiche ; logos et produits suggérés exclus.");
   else result.uncertainties.unshift("Aucune photo de ce produit n’a été identifiée dans les métadonnées de la fiche.");
   result.uncertainties = [...new Set(result.uncertainties)].slice(0, 20);
   return result;
